@@ -11,24 +11,24 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PowerShell test dependencies
+      - name: Install test dependencies
         shell: pwsh
         run: |
           Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
 
-      - name: Install SmailPost runtime dependencies
+      - name: Install runtime dependencies
         shell: pwsh
         run: |
-          Install-Module Microsoft.Graph.Authentication -RequiredVersion 2.11.0 -Scope CurrentUser -Force
-          Install-Module Microsoft.Graph.Users.Actions -RequiredVersion 2.11.0 -Scope CurrentUser -Force
-          Install-Module Microsoft.PowerShell.SecretManagement -RequiredVersion 1.1.2 -Scope CurrentUser -Force
-          Install-Module Microsoft.PowerShell.SecretStore -RequiredVersion 1.0.6 -Scope CurrentUser -Force
+          Install-Module Microsoft.Graph.Authentication -RequiredVersion 2.11.0 -Scope CurrentUser -Force -AllowClobber
+          Install-Module Microsoft.Graph.Users.Actions -RequiredVersion 2.11.0 -Scope CurrentUser -Force -AllowClobber
+          Install-Module Microsoft.PowerShell.SecretManagement -RequiredVersion 1.1.2 -Scope CurrentUser -Force -AllowClobber
+          Install-Module Microsoft.PowerShell.SecretStore -RequiredVersion 1.0.6 -Scope CurrentUser -Force -AllowClobber
 
-      - name: Run PSScriptAnalyzer
+      - name: Run Script Analyzer
         shell: pwsh
         run: |
           Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1 -Severity Warning
