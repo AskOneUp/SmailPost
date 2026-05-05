@@ -1,82 +1,180 @@
 # SmailPost
 
-[![Quality Checks](https://github.com/OWNER/REPO/actions/workflows/quality.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/quality.yml)
+[![Quality Checks](https://github.com/AskOneUp/SmailPost/actions/workflows/quality.yml/badge.svg)](https://github.com/AskOneUp/SmailPost/actions/workflows/quality.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PowerShell 7+](https://img.shields.io/badge/PowerShell-7%2B-5391FE)](#)
 
-SmailPost is a PowerShell module for sending mass emails.
-It is designed with a clean structure, automated quality checks, and support for testing.
+SmailPost is a PowerShell module for sending bulk emails through Microsoft Graph.
+
+It provides a structured pipeline:
+
+```
+CSV → Validation → Rendering → Sending → Reporting
+```
+
+---
+
+## Quick Start
+
+```powershell
+Import-Module ./SmailPost.psd1
+
+Install-SPDependency
+Invoke-SPSetup
+Invoke-SPStoreSecret
+Invoke-SPSetup
+```
+
+Send a test email:
+
+```powershell
+Send-SPMail `
+    -SenderAddress "no-reply@contoso.com" `
+    -To "user@contoso.com" `
+    -Subject "Test" `
+    -HtmlBody "<p>Hello from SmailPost.</p>"
+```
 
 ---
 
 ## Features
-- Send bulk emails from PowerShell.
-- Structured as a proper module (`.psm1`, `.psd1`).
-- Built-in code quality checks with **PSScriptAnalyzer**.
-- Ready for automated testing with **Pester**.
-- Cross-platform support via **PowerShell 7 (pwsh)**.
 
+- Bulk email via Microsoft Graph
+- CSV-driven mail jobs
+- Template support with `{{Placeholders}}`
+- Per-recipient send results
+- JSON and CSV reporting
+- Secure credential storage with SecretStore
+- Sender allow-list through the `SmailPost-Senders` group
+- Full Pester test coverage
 
-## Installation
+---
 
-Clone this repository and import the module:
+## Core Commands
 
-```powershell
-Import-Module ./SmailPost.psd1
+| Command | Description |
+|--------|------------|
+| Install-SPDependency | Installs required PowerShell modules |
+| Invoke-SPSetup | Prepares and validates the environment |
+| Invoke-SPStoreSecret | Stores Microsoft Graph credentials |
+| Reset-SPSecretStoreState | Resets SecretStore state |
+| Test-SPEnvironment | Checks PowerShell compatibility |
+| Test-SPPrerequisite | Checks Graph reachability |
+| Test-SPGraphConnection | Validates Graph authentication |
+| Get-SPAllowedSender | Lists allowed sender mailboxes |
+| Import-SPCsv | Imports CSV input |
+| Send-SPMail | Sends one email per recipient |
+| Invoke-SPMailJob | Runs a full CSV mail job |
+| Export-SPMailJobReport | Exports a job report |
+| Show-SPMailJobSummary | Displays a job summary |
+
+---
+
+## CSV Example
+
+```csv
+Email,FirstName
+john@contoso.com,John
+jane@contoso.com,Jane
 ```
 
-## Usage
+Template example:
 
-Basic example:
+```
+Hello {{FirstName}}
+```
 
-Send-Mail -To "user@example.com" -Subject "Hello" -Body "World"
+CSV job example:
+
+```powershell
+$report = Invoke-SPMailJob `
+    -CsvPath "C:\Data\Recipients.csv" `
+    -RecipientColumn "Email" `
+    -SenderAddress "no-reply@contoso.com" `
+    -SubjectTemplate "Hello {{FirstName}}" `
+    -HtmlBodyTemplate "<p>Hello {{FirstName}},</p><p>This message was sent with SmailPost.</p>"
+
+Show-SPMailJobSummary -Report $report
+```
+
+---
+
+## Reports
+
+Export as JSON:
+
+```powershell
+Export-SPMailJobReport `
+    -Report $report `
+    -Path "C:\Reports\SmailPostReport.json"
+```
+
+Export as CSV:
+
+```powershell
+Export-SPMailJobReport `
+    -Report $report `
+    -Path "C:\Reports\SmailPostReport.csv" `
+    -Format Csv
+```
+
+---
+
+## Requirements
+
+- PowerShell 7.2 or newer
+- Microsoft Graph application permissions:
+  - Mail.Send
+  - GroupMember.Read.All
+  - User.Read.All
+- Microsoft Entra group:
+
+```
+SmailPost-Senders
+```
+
+Only mail-enabled users in this group are allowed senders.
+
+---
 
 ## Development
 
-Code Quality
-
-Run PSScriptAnalyzer to check coding standards:
+Run tests:
 
 ```powershell
-Invoke-ScriptAnalyzer -Path . -Recurse -Severity Warning
+Invoke-Pester -Path .\Tests
 ```
 
-## Tests
-
-Run Pester tests in the Tests/ folder:
+Run Script Analyzer:
 
 ```powershell
-Invoke-Pester
+Invoke-ScriptAnalyzer `
+    -Path . `
+    -Recurse `
+    -Settings .\PSScriptAnalyzerSettings.psd1 `
+    -Severity Warning
 ```
+
+---
 
 ## Project Structure
 
-SmailPost/
-│
-├─ Public/                 # Exported commands
-├─ Private/                # Internal helpers
-├─ Examples/               # Example usage scripts
-├─ Docs/                   # Documentation
-├─ Tests/                  # Pester tests
-│
-├─ SmailPost.psd1          # Module manifest
-├─ SmailPost.psm1          # Module entry point
-├─ .editorconfig
-├─ .gitattributes
-├─ .gitignore
-├─ .vscode/settings.json   # Workspace settings
-├─ .github/workflows/quality.yml
-│
-├─ CHANGELOG.md
-├─ LICENSE
-└─ README.md
+```
+Public/      Public commands
+Private/     Internal helpers
+Tests/       Pester tests
+Docs/        Documentation
+Examples/    Example scripts
+```
 
-## Contributing
+---
 
-Pull requests are welcome.
+## Documentation
 
-For major changes, please open an issue first to discuss what you would like to change.
+Full manual available in the `Docs/` folder.
+
+---
 
 ## License
 
-This project is licensed under the MIT License
+MIT License.
