@@ -1,0 +1,18 @@
+# Enforce LF line endings for all text files
+* text=auto eol=LF
+
+# PowerShell scripts
+*.ps1 text eol=LF
+*.psm1 text eol=LF
+*.psd1 text eol=LF
+
+# JSON and Yaml configs
+*.json text eol=LF
+*.yml text eol=LF
+*.yaml text eol=LF
+
+# Mark binaries so Git won't mess with them
+*.exe binary
+*.dll binary
+*.png binary
+*.jpg binary

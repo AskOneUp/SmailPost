@@ -1,0 +1,48 @@
+# ========================
+# Build and IDE artifacts
+# ========================
+bin/
+obj/
+.vs/
+.vscode/*.log
+*.user
+*.suo
+
+# ========================
+# Logs, reports, and generated output
+# ========================
+logs/
+Reports/
+coverage.xml
+TestResults/
+CoverageReport/
+*.log
+*.tmp
+
+# ========================
+# PowerShell packaging outputs
+# ========================
+*.nupkg
+*.zip
+
+# ========================
+# PowerShell generated/session files
+# ========================
+*.ps1xml
+*.psc1
+*.pssc
+
+# ========================
+# Local data and secrets
+# ========================
+Data/
+*.secret.json
+*.config.local.json
+*.local.*
+.env
+
+# ========================
+# Scratch files
+# ========================
+Test.ps1
+.csv

@@ -1,0 +1,13 @@
+{
+  "workbench.startupEditor": "none",
+
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  "editor.useEditorConfig": true,
+
+  "[powershell]": { "editor.formatOnSave": true },
+  "[json]": { "editor.formatOnSave": true },
+  "[yaml]": { "editor.formatOnSave": true }
+}
