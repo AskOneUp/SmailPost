@@ -5,13 +5,13 @@ function Invoke-SPStoreSecret {
 
         .DESCRIPTION
         Ensures the target SecretManagement vault (default 'SmailPost') exists and is SecretStore-backed.
-        Prompts for Tenant ID, App (Client) ID, Sender mailbox, then securely prompts twice for the
-        secret value and saves it under the provided -SecretName. Adds metadata (Purpose, TenantID,
-        AppID, SenderMail, CreatedOn, CreatedBy). SecretStore must be in Password mode; if locked, you
-        may be prompted to unlock.
+        Prompts for Tenant ID and App (Client) ID, then allows the Graph client secret to be pasted once
+        before immediately converting it to a SecureString. Adds metadata (Purpose, TenantID, AppID,
+        CreatedOn, CreatedBy). SecretStore must be in Password mode; if locked, you may be prompted
+        to unlock.
 
         .PARAMETER SecretName
-        The logical key/name for the secret (e.g. 'Graph:ClientSecret', 'Smtp:Password').
+        The logical key/name for the secret. Defaults to 'SmailPost-GraphClientSecret'.
 
         .PARAMETER VaultName
         The SecretManagement vault to write to. Defaults to 'SmailPost'.
@@ -22,26 +22,29 @@ function Invoke-SPStoreSecret {
         .PARAMETER AppId
         Application (client) ID. Required in unattended mode; optional in interactive mode.
 
-        .PARAMETER SenderMail
-        Sender mailbox address. Required in unattended mode; optional in interactive mode.
-
         .PARAMETER Secret
         The secret value as a SecureString. Required in unattended mode; optional in interactive mode.
 
         .PARAMETER Unattended
-        Suppress all prompts. Requires TenantId, AppId, Sender, and Secret to be supplied. Fails if the SecretStore is locked.
+        Suppresses all prompts. Requires TenantId, AppId, and Secret to be supplied.
+        Fails if the SecretStore is locked.
 
         .PARAMETER Force
-        Overwrite an existing secret without prompting. In unattended mode, Force is required to allow overwrite.
+        Overwrites an existing secret without prompting. In unattended mode, Force is required
+        to allow overwrite.
 
         .EXAMPLE
-        Invoke-SPStoreSecret -SecretName 'Graph:ClientSecret'
-        Prompts for IDs/senderMail and the client secret (twice), then stores it in the default vault.
+        Invoke-SPStoreSecret
+
+        Prompts for Tenant ID and App ID, then allows the Graph client secret to be pasted once
+        before storing it in the default vault.
 
         .EXAMPLE
-        Invoke-SPStoreSecret -SecretName 'Graph:ClientSecret' -VaultName 'SmailPost' -Unattended `
-            -TenantId '00000000-0000-0000-0000-000000000000' -AppId '11111111-1111-1111-1111-111111111111' `
-            -SenderMail 'no-reply@contoso.com' -Secret (Read-Host 'Secret' -AsSecureString) -Force
+        Invoke-SPStoreSecret -SecretName 'SmailPost-GraphClientSecret' -VaultName 'SmailPost' -Unattended `
+            -TenantId '00000000-0000-0000-0000-000000000000' `
+            -AppId '11111111-1111-1111-1111-111111111111' `
+            -Secret (Read-Host 'Secret' -AsSecureString) -Force
+
         Runs without prompts and overwrites if the secret already exists.
 
         .OUTPUTS
@@ -54,31 +57,48 @@ function Invoke-SPStoreSecret {
 
     # Enable common parameters and ShouldProcess semantics.
     [CmdletBinding(SupportsShouldProcess = $true)]
-    # Declare that this function emits no pipeline output.
     [OutputType([void])]
     [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute(
         'PSUseCmdletCorrectly', '',
         Justification = 'We only surface guidance for Unlock-SecretStore; interactive usage handled by user.'
     )]
+    [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute(
+        'PSAvoidUsingConvertToSecureStringWithPlainText', '',
+        Justification = 'Interactive client secret entry intentionally accepts pasted plaintext and immediately converts it to SecureString.'
+    )]
     param (
         # Target vault and secret naming.
-        [Parameter()][ValidateNotNullOrEmpty()][string]$VaultName = 'SmailPost',
-        [Parameter()][ValidateNotNullOrEmpty()][string]$SecretName = 'SmailPost-GraphClientSecret',
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string]$VaultName = 'SmailPost',
 
-        # Optional inputs for interactive; required in unattended mode.
-        [Parameter()][string]$TenantId,
-        [Parameter()][string]$AppId,
-        [Parameter()][SecureString]$Secret,
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string]$SecretName = 'SmailPost-GraphClientSecret',
+
+        # Optional inputs for interactive use; required in unattended mode.
+        [Parameter()]
+        [string]$TenantId,
+
+        [Parameter()]
+        [string]$AppId,
+
+        [Parameter()]
+        [SecureString]$Secret,
 
         # Behavior switches.
-        [Parameter()][switch]$Unattended,
-        [Parameter()][switch]$Force
+        [Parameter()]
+        [switch]$Unattended,
+
+        [Parameter()]
+        [switch]$Force
     )
 
     # Check module prerequisites early.
     Write-Verbose "Checking SecretManagement modules."
     $smok = Get-Module -ListAvailable Microsoft.PowerShell.SecretManagement
     $ssok = Get-Module -ListAvailable Microsoft.PowerShell.SecretStore
+
     if (-not $smok -or -not $ssok) {
         throw "Secret modules missing. Please run Test-SPEnvironment or Install-SPDependency first."
     }
@@ -86,18 +106,21 @@ function Invoke-SPStoreSecret {
     # Verify vault registration and backend.
     Write-Verbose "Checking whether vault '$VaultName' exists and is SecretStore-backed."
     $vault = Get-SecretVault -Name $VaultName -ErrorAction SilentlyContinue
+
     if (-not $vault) {
         if ($WhatIfPreference) {
             Write-Verbose "WhatIf: vault '$VaultName' not registered; would fail here. Run Invoke-SPSetup without -WhatIf."
             return
         }
+
         throw @"
-            Vault '$VaultName' not found.
-            → If your SecretStore is in Password mode: first run Unlock-SecretStore, then rerun Invoke-SPSetup to auto-register the vault.
-            → Or register it manually with:
-            Register-SecretVault -Name '$VaultName' -ModuleName Microsoft.PowerShell.SecretStore
+Vault '$VaultName' not found.
+→ If your SecretStore is in Password mode: first run Unlock-SecretStore, then rerun Invoke-SPSetup to auto-register the vault.
+→ Or register it manually with:
+Register-SecretVault -Name '$VaultName' -ModuleName Microsoft.PowerShell.SecretStore
 "@
     }
+
     if ($vault.ModuleName -ne 'Microsoft.PowerShell.SecretStore') {
         throw "Vault '$VaultName' is not using SecretStore backend. Aborting."
     }
@@ -105,97 +128,134 @@ function Invoke-SPStoreSecret {
     # Ensure SecretStore is in password mode.
     Write-Verbose "Checking SecretStore configuration (must be Password mode)."
     $cfg = Get-SecretStoreConfiguration
+
     if ($cfg.Authentication -ne 'Password') {
         throw "SecretStore is not in Password mode. Set it with: Set-SecretStoreConfiguration -Authentication Password -Interaction Required."
     }
 
-    # Friendly heads-up about transcription.
+    # Provide a transcription warning without exposing secret data.
     if ($Host -and $Host.Name) {
-        Write-Verbose "Host: $($Host.Name). If PowerShell transcription is enabled, pause it to avoid leaking prompts."
+        Write-Verbose "Host: $($Host.Name). If PowerShell transcription is enabled, pause it before entering credentials."
     }
 
-    # WhatIf short-circuit.
+    # Short-circuit WhatIf before collecting credentials.
     if ($WhatIfPreference) {
-        Write-Verbose "WhatIf: would collect TenantId/AppId/SenderMail and store secret '$SecretName' in vault '$VaultName'."
+        Write-Verbose "WhatIf: would collect TenantId/AppId and store secret '$SecretName' in vault '$VaultName'."
         return
     }
 
-    # Unattended input validation and prompt avoidance.
+    # Validate unattended input before any prompting can occur.
     if ($Unattended) {
-        # Require all inputs to be supplied.
-        if ([string]::IsNullOrWhiteSpace($TenantId) -or [string]::IsNullOrWhiteSpace($AppId) -or -not $Secret) {
+        if (
+            [string]::IsNullOrWhiteSpace($TenantId) -or
+            [string]::IsNullOrWhiteSpace($AppId) -or
+            -not $Secret
+        ) {
             throw "Unattended mode requires TenantId, AppId, and Secret to be provided."
         }
     }
 
-    # Collect metadata interactively only when not unattended and values are missing.
+    # Collect identifiers interactively when they were not supplied.
     if (-not $Unattended) {
-        if ([string]::IsNullOrWhiteSpace($TenantId)) { $TenantId = Read-Host "Enter Tenant ID (from admin)" }
-        if ([string]::IsNullOrWhiteSpace($AppId)) { $AppId = Read-Host "Enter app (Client) ID (from admin)" }
-        if ([string]::IsNullOrWhiteSpace($TenantId) -or [string]::IsNullOrWhiteSpace($AppId)) {
+        if ([string]::IsNullOrWhiteSpace($TenantId)) {
+            $TenantId = Read-Host "Enter Tenant ID (from admin)"
+        }
+
+        if ([string]::IsNullOrWhiteSpace($AppId)) {
+            $AppId = Read-Host "Enter app (Client) ID (from admin)"
+        }
+
+        if (
+            [string]::IsNullOrWhiteSpace($TenantId) -or
+            [string]::IsNullOrWhiteSpace($AppId)
+        ) {
             throw "Tenant ID and App ID are required."
         }
     }
 
-    # Collect the secret value (double prompt) when not supplied and not unattended.
+    # Collect the Graph client secret interactively when it was not supplied.
     if (-not $Secret) {
         if ($Unattended) {
             throw "Unattended mode does not allow prompting for the secret. Provide -Secret as a SecureString."
         }
-        Write-Verbose "Prompting for Graph client secret (hidden)."
-        $sec1 = Read-Host "Enter Graph client secret" -AsSecureString
-        $sec2 = Read-Host "Confirm Graph client secret" -AsSecureString
 
-        # Compare via fingerprint (no plain-text compare).
-        $fp1 = Get-SPStringSha256 -Secure $sec1
-        $fp2 = Get-SPStringSha256 -Secure $sec2
-        if ($fp1 -ne $fp2) {
-            throw "The two entries did not match. Try again."
+        Write-Information -MessageData "" -InformationAction Continue
+        Write-Information -MessageData "Paste the Graph client secret below." -InformationAction Continue
+        Write-Information -MessageData "The value will be converted to a SecureString immediately after entry." -InformationAction Continue
+
+        # Read the generated Entra client secret once so clipboard paste works normally.
+        $plainSecret = Read-Host "Graph client secret"
+
+        if ([string]::IsNullOrWhiteSpace($plainSecret)) {
+            throw "Graph client secret cannot be empty."
         }
-        Write-Verbose "Fingerprint match ($fp1). Proceeding to save."
-        $Secret = $sec1
-        # Hygiene for temporary variables.
-        $sec2 = $null
-        $fp2 = $null
+
+        try {
+            # Convert the pasted value immediately to a SecureString.
+            $Secret = ConvertTo-SecureString -String $plainSecret -AsPlainText -Force
+        }
+        finally {
+            # Remove the temporary plaintext reference as soon as conversion is complete.
+            $plainSecret = $null
+        }
+
+        # Compute a fingerprint for confirmation without displaying the secret.
+        $fp1 = Get-SPStringSha256 -Secure $Secret
+        Write-Verbose "Secret converted to SecureString; fingerprint computed for summary."
     }
     else {
-        # If a secret was provided, compute fingerprint once for the summary.
+        # Compute the fingerprint when a SecureString was supplied directly.
         $fp1 = Get-SPStringSha256 -Secure $Secret
         Write-Verbose "Secret value provided via parameter; computed fingerprint for summary."
     }
 
-    # Overwrite policy: prompt only in interactive; require -Force in unattended.
+    # Apply overwrite policy.
     $exists = Get-SecretInfo -Name $SecretName -Vault $VaultName -ErrorAction SilentlyContinue
+
     if ($exists) {
         if ($Unattended -and -not $Force) {
             throw "Secret '$SecretName' already exists. Use -Force to overwrite in unattended mode."
         }
+
         if (-not $Unattended -and -not $Force) {
             $ans = Read-Host "Secret '$SecretName' already exists. Overwrite? (Y/N)"
-            if ($ans -notin @('Y', 'y')) { throw "Aborted by user; secret unchanged." }
+
+            if ($ans -notin @('Y', 'y')) {
+                throw "Aborted by user; secret unchanged."
+            }
+
             Write-Verbose "User approved overwrite."
         }
     }
 
-    # Lock status check and unlock only if interactive; unattended must fail closed when locked.
+    # Determine whether the SecretStore is currently locked.
     $locked = $false
+
     if ($cfg.Authentication -eq 'Password') {
         try {
             Get-SecretInfo -Vault $VaultName -Name '*' -ErrorAction Stop | Out-Null
         }
         catch {
-            if ($_.Exception.Message -match 'locked|Unlock-SecretStore|password') { $locked = $true }
+            if ($_.Exception.Message -match 'locked|Unlock-SecretStore|password') {
+                $locked = $true
+            }
         }
     }
+
+    # Unlock interactively when required; unattended execution fails closed.
     if ($locked) {
         if ($Unattended) {
             throw "SecretStore is locked. Unlock the store before running with -Unattended."
         }
-        Unlock-SecretStore # Prompts only when needed.
+
+        Unlock-SecretStore
     }
 
-    # Save secret and metadata with ShouldProcess guard.
-    if ($PSCmdlet.ShouldProcess("$VaultName/$SecretName", ($exists ? "Update secret" : "Create secret"))) {
+    # Save the secret and its metadata.
+    if ($PSCmdlet.ShouldProcess(
+            "$VaultName/$SecretName",
+            ($exists ? "Update secret" : "Create secret")
+        )) {
         Set-Secret -Name $SecretName -Vault $VaultName -Secret $Secret -Metadata @{
             Purpose   = 'Graph Mail.Send'
             TenantID  = $TenantId
@@ -204,7 +264,9 @@ function Invoke-SPStoreSecret {
             CreatedBy = $env:USERNAME
         }
 
+        # Verify that the stored secret can be retrieved.
         Write-Verbose "Secret stored. Verifying retrieval (may prompt for vault password)."
+
         try {
             $null = Get-Secret -Name $SecretName -Vault $VaultName
             Write-Verbose "Retrieval OK."
@@ -214,8 +276,7 @@ function Invoke-SPStoreSecret {
         }
     }
 
-    # Summary (no secret value; fingerprint only).
-    # Summary (no secret value; fingerprint only).
+    # Display a safe summary without exposing the secret value.
     Write-Information -MessageData ""
     Write-Information -MessageData "✅  Secret saved as '$SecretName' in vault '$VaultName'." -InformationAction Continue
     Write-Information -MessageData "    Tenant: $TenantId" -InformationAction Continue
@@ -224,7 +285,7 @@ function Invoke-SPStoreSecret {
     Write-Information -MessageData "🔒  Vault relocked." -InformationAction Continue
     Write-Information -MessageData "    Next step: rerun Invoke-SPSetup to validate Graph authentication." -InformationAction Continue
 
-    # Hygiene: clear variables from memory.
+    # Clear temporary credential references from the function scope.
     $fp1 = $null
     $Secret = $null
     [System.GC]::Collect() | Out-Null

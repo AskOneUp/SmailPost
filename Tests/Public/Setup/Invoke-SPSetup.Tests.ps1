@@ -270,6 +270,7 @@ Describe 'Invoke-SPSetup' {
 
             $result.GraphConnection.Status | Should -Be '❌'
             $result.OverallStatus | Should -Be '❌'
+            $result.NextStep | Should -Be 'Verify the stored Graph credentials and rerun Invoke-SPStoreSecret'
             ($result.GraphConnection.Notes -join '|') | Should -Match 'Role missing'
         }
     }

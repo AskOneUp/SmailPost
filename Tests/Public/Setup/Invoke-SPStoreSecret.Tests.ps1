@@ -257,5 +257,30 @@ Describe 'Invoke-SPStoreSecret' {
 
             $script:SetSecretCalls | Should -Be 0
         }
+        It 'Accepts a pasted client secret in interactive mode and stores it as a SecureString' {
+
+            # Simulate the interactive prompts, including a pasted plaintext client secret.
+            Mock Read-Host {
+                if ($Prompt -like '*Tenant*') { return 'tenant-id' }
+                if ($Prompt -like '*Client*') { return 'app-id' }
+                if ($Prompt -eq 'Graph client secret') { return 'pasted-client-secret' }
+            }
+
+            # Capture the value passed to Set-Secret.
+            Mock Set-Secret {
+                $script:SetSecretCalls++
+                $script:Metadata = $Metadata
+                $script:StoredSecret = $Secret
+            }
+
+            # Run the normal interactive workflow.
+            Invoke-SPStoreSecret -Force
+
+            # Verify that the pasted value was converted before storage.
+            $script:SetSecretCalls | Should -Be 1
+            $script:StoredSecret | Should -BeOfType [System.Security.SecureString]
+            $script:Metadata.TenantID | Should -Be 'tenant-id'
+            $script:Metadata.AppID | Should -Be 'app-id'
+        }
     }
 }

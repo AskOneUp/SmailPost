@@ -420,7 +420,13 @@ function Invoke-SPSetup {
         elseif ($summary.GraphConnection.Status -eq '⏭️') {
             $summary.NextStep = 'Run Invoke-SPStoreSecret'
         }
-        elseif ($summary.AllowedSenders.Status -eq '⏭️') {
+        elseif ($summary.GraphConnection.Status -eq '❌') {
+            $summary.NextStep = 'Verify the stored Graph credentials and rerun Invoke-SPStoreSecret'
+        }
+        elseif (
+            $summary.GraphConnection.Status -eq '✅' -and
+            $summary.AllowedSenders.Status -eq '⏭️'
+        ) {
             $summary.NextStep = 'Add users with valid mail addresses to the SmailPost-Senders group'
         }
         elseif ($summary.OverallStatus -eq '✅') {
