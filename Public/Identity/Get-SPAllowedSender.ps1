@@ -1,10 +1,10 @@
 function Get-SPAllowedSender {
     <#
         .SYNOPSIS
-        Retrieves the allowed sender mailboxes from the SmailPost-Senders Entra group.
+        Retrieves the allowed sender mailboxes from the C-S-mailPost-Senders Entra group.
 
         .DESCRIPTION
-        Uses app-only Microsoft Graph authentication to locate the SmailPost-Senders group,
+        Uses app-only Microsoft Graph authentication to locate the C-S-mailPost-Senders group,
         retrieves its members, filters to mail-enabled user objects, and returns a clean,
         UI-friendly sender list.
 
@@ -23,7 +23,7 @@ function Get-SPAllowedSender {
     # ========================
     # Define fixed values for sender group discovery.
     # ========================
-    $groupDisplayName = 'SmailPost-Senders'
+    $groupDisplayName = 'C-S-mailPost-Senders'
 
     Write-Verbose "Acquiring Microsoft Graph access token."
     $tokenResult = Get-SPGraphAccessToken

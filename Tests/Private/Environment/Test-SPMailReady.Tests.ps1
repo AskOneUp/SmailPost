@@ -171,7 +171,7 @@ Describe 'Test-SPMailReady' {
         $result.AllowedSenderCount | Should -Be 0
         $result.Notes | Should -Contain 'Stored Graph credentials are present.'
         $result.Notes | Should -Contain 'Microsoft Graph app-only connection is valid.'
-        $result.Notes | Should -Contain "No valid allowed senders were found in group 'SmailPost-Senders'."
+        $result.Notes | Should -Contain "No valid allowed senders were found in group 'C-S-mailPost-Senders'."
 
         Should -Invoke Get-SPStoredSecretState -Times 1 -Exactly
         Should -Invoke Test-SPGraphConnection -Times 1 -Exactly

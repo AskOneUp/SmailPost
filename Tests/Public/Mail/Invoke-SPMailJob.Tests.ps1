@@ -17,16 +17,22 @@ Describe 'Invoke-SPMailJob' {
         if (-not (Get-Command Test-SPMailJobSetup -ErrorAction SilentlyContinue)) {
             function Test-SPMailJobSetup {
                 param (
+                    $CsvImportResult,
+                    $RecipientColumn,
                     $SenderAddress,
-                    $CsvData,
-                    $Template,
-                    $Attachments
+                    $SubjectTemplate,
+                    $BodyTemplate,
+                    $AttachmentPaths,
+                    $InlineImages
                 )
 
+                $null = $CsvImportResult
+                $null = $RecipientColumn
                 $null = $SenderAddress
-                $null = $CsvData
-                $null = $Template
-                $null = $Attachments
+                $null = $SubjectTemplate
+                $null = $BodyTemplate
+                $null = $AttachmentPaths
+                $null = $InlineImages
             }
         }
 
@@ -34,15 +40,17 @@ Describe 'Invoke-SPMailJob' {
             function Test-SPMailRow {
                 param (
                     $Row,
-                    $Headers,
-                    $Template,
-                    $Attachments
+                    $RowNumber,
+                    $RecipientColumn,
+                    $SubjectTemplate,
+                    $BodyTemplate
                 )
 
                 $null = $Row
-                $null = $Headers
-                $null = $Template
-                $null = $Attachments
+                $null = $RowNumber
+                $null = $RecipientColumn
+                $null = $SubjectTemplate
+                $null = $BodyTemplate
             }
         }
 
@@ -50,25 +58,35 @@ Describe 'Invoke-SPMailJob' {
             function ConvertTo-SPMailRender {
                 param (
                     $Row,
-                    $Template,
-                    $Attachments
+                    $RowNumber,
+                    $RecipientColumn,
+                    $SubjectTemplate,
+                    $BodyTemplate,
+                    $AttachmentPaths,
+                    $InlineImages
                 )
 
                 $null = $Row
-                $null = $Template
-                $null = $Attachments
+                $null = $RowNumber
+                $null = $RecipientColumn
+                $null = $SubjectTemplate
+                $null = $BodyTemplate
+                $null = $AttachmentPaths
+                $null = $InlineImages
             }
         }
 
         if (-not (Get-Command Send-SPMailBatch -ErrorAction SilentlyContinue)) {
             function Send-SPMailBatch {
                 param (
+                    $RenderItems,
                     $SenderAddress,
-                    $RenderItems
+                    $SaveToSentItems
                 )
 
-                $null = $SenderAddress
                 $null = $RenderItems
+                $null = $SenderAddress
+                $null = $SaveToSentItems
             }
         }
 
@@ -129,13 +147,14 @@ Describe 'Invoke-SPMailJob' {
 
         Mock ConvertTo-SPMailRender {
             [pscustomobject]@{
-                RowNumber   = $RowNumber
-                Recipient   = $Row.Email
-                Subject     = 'Hello'
-                Body        = '<p>Hello</p>'
-                Attachments = @()
-                Issues      = @()
-                Status      = 'Valid'
+                RowNumber    = $RowNumber
+                Recipient    = $Row.Email
+                Subject      = 'Hello'
+                Body         = '<p>Hello</p>'
+                Attachments  = @($AttachmentPaths)
+                InlineImages = @($InlineImages)
+                Issues       = @()
+                Status       = 'Valid'
             }
         }
 
@@ -268,15 +287,16 @@ Describe 'Invoke-SPMailJob' {
 
         Mock ConvertTo-SPMailRender {
             [pscustomobject]@{
-                RowNumber   = $RowNumber
-                Recipient   = $Row.Email
-                Subject     = 'Hello'
-                Body        = '<p>Hello</p>'
-                Attachments = @()
-                Issues      = @(
+                RowNumber    = $RowNumber
+                Recipient    = $Row.Email
+                Subject      = 'Hello'
+                Body         = '<p>Hello</p>'
+                Attachments  = @()
+                InlineImages = @()
+                Issues       = @(
                     [pscustomobject]@{ Code = 'Render.Invalid' }
                 )
-                Status      = 'Invalid'
+                Status       = 'Invalid'
             }
         }
 
@@ -292,5 +312,68 @@ Describe 'Invoke-SPMailJob' {
         Should -Invoke Test-SPMailRow -Times 2 -Exactly
         Should -Invoke ConvertTo-SPMailRender -Times 2 -Exactly
         Should -Invoke Send-SPMailBatch -Times 0 -Exactly
+    }
+
+    It 'Passes inline images to job setup validation' {
+        $inlineImages = @(
+            [pscustomobject]@{
+                Path      = 'C:\Temp\connected-logo.png'
+                ContentId = 'connected-logo'
+            }
+        )
+
+        $null = Invoke-SPMailJob `
+            -CsvPath 'C:\Temp\input.csv' `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -HtmlBodyTemplate '<img src="cid:connected-logo">' `
+            -InlineImages $inlineImages
+
+        Should -Invoke Test-SPMailJobSetup -Times 1 -Exactly -ParameterFilter {
+            $InlineImages.Count -eq 1 -and
+            $InlineImages[0].Path -eq 'C:\Temp\connected-logo.png' -and
+            $InlineImages[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Passes inline images to every valid mail render' {
+        $inlineImages = @(
+            [pscustomobject]@{
+                Path      = 'C:\Temp\connected-logo.png'
+                ContentId = 'connected-logo'
+            }
+        )
+
+        $null = Invoke-SPMailJob `
+            -CsvPath 'C:\Temp\input.csv' `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -HtmlBodyTemplate '<img src="cid:connected-logo">' `
+            -InlineImages $inlineImages
+
+        Should -Invoke ConvertTo-SPMailRender -Times 2 -Exactly -ParameterFilter {
+            $InlineImages.Count -eq 1 -and
+            $InlineImages[0].Path -eq 'C:\Temp\connected-logo.png' -and
+            $InlineImages[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Uses an empty inline image collection when no inline images are supplied' {
+        $null = Invoke-SPMailJob `
+            -CsvPath 'C:\Temp\input.csv' `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -HtmlBodyTemplate '<p>Hello {FirstName}</p>'
+
+        Should -Invoke Test-SPMailJobSetup -Times 1 -Exactly -ParameterFilter {
+            @($InlineImages).Count -eq 0
+        }
+
+        Should -Invoke ConvertTo-SPMailRender -Times 2 -Exactly -ParameterFilter {
+            @($InlineImages).Count -eq 0
+        }
     }
 }

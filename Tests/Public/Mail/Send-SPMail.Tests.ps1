@@ -24,10 +24,12 @@ Describe 'Send-SPMail' {
         if (-not (Get-Command Test-SPAttachmentSet -ErrorAction SilentlyContinue)) {
             function Test-SPAttachmentSet {
                 param (
-                    $AttachmentPath
+                    $AttachmentPath,
+                    $MaxTotalBytes
                 )
 
                 $null = $AttachmentPath
+                $null = $MaxTotalBytes
                 [pscustomobject]@{}
             }
         }
@@ -35,10 +37,12 @@ Describe 'Send-SPMail' {
         if (-not (Get-Command ConvertTo-SPGraphAttachmentSet -ErrorAction SilentlyContinue)) {
             function ConvertTo-SPGraphAttachmentSet {
                 param (
-                    $AttachmentPath
+                    $AttachmentPath,
+                    $InlineImage
                 )
 
                 $null = $AttachmentPath
+                $null = $InlineImage
                 [pscustomobject]@{}
             }
         }
@@ -155,23 +159,68 @@ Describe 'Send-SPMail' {
         }
 
         Mock Test-SPAttachmentSet {
+            param (
+                $AttachmentPath,
+                $MaxTotalBytes
+            )
+
+            $paths = @($AttachmentPath)
+
             [pscustomobject]@{
                 Valid                = $true
-                AttachmentCount      = 0
+                AttachmentCount      = $paths.Count
                 AttachmentTotalBytes = 0L
-                MaxTotalBytes        = 8MB
-                ValidPaths           = @()
+                MaxTotalBytes        = $MaxTotalBytes
+                ValidPaths           = $paths
                 InvalidPaths         = @()
-                Notes                = @('No attachments supplied.')
+                Notes                = @('Attachment validation succeeded.')
             }
         }
 
         Mock ConvertTo-SPGraphAttachmentSet {
+            param (
+                $AttachmentPath,
+                $InlineImage
+            )
+
+            $attachments = @()
+
+            foreach ($path in @($AttachmentPath)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$path)) {
+                    $attachments += @{
+                        '@odata.type' = '#microsoft.graph.fileAttachment'
+                        name          = [System.IO.Path]::GetFileName([string]$path)
+                    }
+                }
+            }
+
+            foreach ($inlineItem in @($InlineImage)) {
+                if ($null -eq $inlineItem) {
+                    continue
+                }
+
+                $attachments += @{
+                    '@odata.type' = '#microsoft.graph.fileAttachment'
+                    name          = [System.IO.Path]::GetFileName([string]$inlineItem.Path)
+                    isInline      = $true
+                    contentId     = [string]$inlineItem.ContentId
+                }
+            }
+
+            $inlineCount = @(
+                $attachments |
+                Where-Object {
+                    $_.ContainsKey('isInline') -and
+                    $_.isInline -eq $true
+                }
+            ).Count
+
             [pscustomobject]@{
-                Attachments          = @()
-                AttachmentCount      = 0
+                Attachments          = $attachments
+                AttachmentCount      = $attachments.Count
                 AttachmentTotalBytes = 0L
-                Notes                = @('No attachments supplied.')
+                InlineImageCount     = $inlineCount
+                Notes                = @('Graph attachments built.')
             }
         }
 
@@ -189,15 +238,13 @@ Describe 'Send-SPMail' {
         }
 
         Mock ConvertTo-SPGraphMailPayload {
-            param(
+            param (
                 $Recipient,
                 $Subject,
                 $HtmlBody,
                 $Attachments,
                 $SaveToSentItems
             )
-
-            $null = $Attachments
 
             @{
                 message         = @{
@@ -213,13 +260,14 @@ Describe 'Send-SPMail' {
                             }
                         }
                     )
+                    attachments  = @($Attachments)
                 }
                 saveToSentItems = $SaveToSentItems
             }
         }
 
         Mock Send-SPGraphMailRequest {
-            param(
+            param (
                 $SenderAddress,
                 $Payload
             )
@@ -237,7 +285,7 @@ Describe 'Send-SPMail' {
         }
 
         Mock ConvertTo-SPMailResult {
-            param(
+            param (
                 $Recipient,
                 $RecipientIndex,
                 $SenderAddress,
@@ -335,16 +383,206 @@ Describe 'Send-SPMail' {
         $results[0].ErrorMessage | Should -Be ''
     }
 
+    It 'Sends an ordinary attachment through the existing attachment contract' {
+        Mock Test-SPAttachmentSet {
+            param (
+                $AttachmentPath,
+                $MaxTotalBytes
+            )
+
+            $paths = @($AttachmentPath)
+
+            [pscustomobject]@{
+                Valid                = $true
+                AttachmentCount      = $paths.Count
+                AttachmentTotalBytes = if ($paths.Count -gt 0) { 100L } else { 0L }
+                MaxTotalBytes        = $MaxTotalBytes
+                ValidPaths           = $paths
+                InvalidPaths         = @()
+                Notes                = @('Attachment validation succeeded.')
+            }
+        }
+
+        $results = Send-SPMail `
+            -SenderAddress 'AskOneUp@outlook.com' `
+            -To @('user@example.com') `
+            -Subject 'Test subject' `
+            -HtmlBody '<p>Hello</p>' `
+            -AttachmentPath 'C:\Temp\manual.pdf' `
+            -Confirm:$false
+
+        $results | Should -HaveCount 1
+        $results[0].Success | Should -BeTrue
+        $results[0].AttachmentCount | Should -Be 1
+
+        Should -Invoke ConvertTo-SPGraphAttachmentSet -Times 1 -ParameterFilter {
+            @($AttachmentPath).Count -eq 1 -and
+            $AttachmentPath[0] -eq 'C:\Temp\manual.pdf' -and
+            @($InlineImage).Count -eq 0
+        }
+    }
+
+    It 'Passes an inline image and ContentId to the Graph attachment set' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        $results = Send-SPMail `
+            -SenderAddress 'AskOneUp@outlook.com' `
+            -To @('user@example.com') `
+            -Subject 'Test subject' `
+            -HtmlBody '<img src="cid:connected-logo">' `
+            -InlineImage @($inlineImage) `
+            -Confirm:$false
+
+        $results | Should -HaveCount 1
+        $results[0].Success | Should -BeTrue
+        $results[0].AttachmentCount | Should -Be 1
+
+        Should -Invoke ConvertTo-SPGraphAttachmentSet -Times 1 -ParameterFilter {
+            @($AttachmentPath).Count -eq 0 -and
+            @($InlineImage).Count -eq 1 -and
+            $InlineImage[0].Path -eq 'C:\Temp\connected-logo.png' -and
+            $InlineImage[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Combines ordinary attachments and inline images' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        $results = Send-SPMail `
+            -SenderAddress 'AskOneUp@outlook.com' `
+            -To @('user@example.com') `
+            -Subject 'Test subject' `
+            -HtmlBody '<img src="cid:connected-logo">' `
+            -AttachmentPath 'C:\Temp\manual.pdf' `
+            -InlineImage @($inlineImage) `
+            -Confirm:$false
+
+        $results | Should -HaveCount 1
+        $results[0].Success | Should -BeTrue
+        $results[0].AttachmentCount | Should -Be 2
+
+        Should -Invoke ConvertTo-SPGraphAttachmentSet -Times 1 -ParameterFilter {
+            @($AttachmentPath).Count -eq 1 -and
+            $AttachmentPath[0] -eq 'C:\Temp\manual.pdf' -and
+            @($InlineImage).Count -eq 1 -and
+            $InlineImage[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Passes the inline Graph attachment to the mail payload' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        Send-SPMail `
+            -SenderAddress 'AskOneUp@outlook.com' `
+            -To @('user@example.com') `
+            -Subject 'Test subject' `
+            -HtmlBody '<img src="cid:connected-logo">' `
+            -InlineImage @($inlineImage) `
+            -Confirm:$false
+
+        Should -Invoke ConvertTo-SPGraphMailPayload -Times 1 -ParameterFilter {
+            @($Attachments).Count -eq 1 -and
+            $Attachments[0].isInline -eq $true -and
+            $Attachments[0].contentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Throws when inline image ContentId is whitespace' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = '   '
+        }
+
+        {
+            Send-SPMail `
+                -SenderAddress 'AskOneUp@outlook.com' `
+                -To @('user@example.com') `
+                -Subject 'Test subject' `
+                -HtmlBody '<p>Hello</p>' `
+                -InlineImage @($inlineImage) `
+                -Confirm:$false
+        } | Should -Throw 'Inline image ContentId cannot be null, empty, or whitespace.'
+    }
+
+    It 'Throws when combined ordinary and inline attachment size exceeds the maximum' {
+        Mock Test-SPAttachmentSet {
+            param (
+                $AttachmentPath,
+                $MaxTotalBytes
+            )
+
+            $paths = @($AttachmentPath)
+            $totalBytes = 0L
+
+            if ($paths.Count -gt 0) {
+                $totalBytes = 600L
+            }
+
+            [pscustomobject]@{
+                Valid                = $true
+                AttachmentCount      = $paths.Count
+                AttachmentTotalBytes = $totalBytes
+                MaxTotalBytes        = $MaxTotalBytes
+                ValidPaths           = $paths
+                InvalidPaths         = @()
+                Notes                = @('Attachment validation succeeded.')
+            }
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        {
+            Send-SPMail `
+                -SenderAddress 'AskOneUp@outlook.com' `
+                -To @('user@example.com') `
+                -Subject 'Test subject' `
+                -HtmlBody '<img src="cid:connected-logo">' `
+                -AttachmentPath 'C:\Temp\manual.pdf' `
+                -InlineImage @($inlineImage) `
+                -MaxTotalAttachmentBytes 1000 `
+                -Confirm:$false
+        } | Should -Throw '*Combined attachment size exceeds the maximum allowed size of 1000 bytes.*'
+    }
+
     It 'Throws when attachment validation fails' {
         Mock Test-SPAttachmentSet {
+            param (
+                $AttachmentPath,
+                $MaxTotalBytes
+            )
+
+            if (@($AttachmentPath).Count -gt 0) {
+                return [pscustomobject]@{
+                    Valid                = $false
+                    AttachmentCount      = 0
+                    AttachmentTotalBytes = 0L
+                    MaxTotalBytes        = $MaxTotalBytes
+                    ValidPaths           = @()
+                    InvalidPaths         = @('C:\Bad\Missing.pdf')
+                    Notes                = @('Attachment validation failed.')
+                }
+            }
+
             [pscustomobject]@{
-                Valid                = $false
+                Valid                = $true
                 AttachmentCount      = 0
                 AttachmentTotalBytes = 0L
-                MaxTotalBytes        = 8MB
+                MaxTotalBytes        = $MaxTotalBytes
                 ValidPaths           = @()
-                InvalidPaths         = @('C:\Bad\Missing.pdf')
-                Notes                = @('Attachment validation failed.')
+                InvalidPaths         = @()
+                Notes                = @('No attachments supplied.')
             }
         }
 

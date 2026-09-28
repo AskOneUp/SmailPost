@@ -32,7 +32,7 @@ Describe 'Test-SPSenderAllowed' {
         $result.Allowed | Should -BeFalse
         $result.MatchedSender | Should -BeNullOrEmpty
         $result.Notes.Count | Should -Be 1
-        $result.Notes[0] | Should -Be 'No allowed senders were returned from the SmailPost-Senders group.'
+        $result.Notes[0] | Should -Be 'No allowed senders were returned from the C-S-mailPost-Senders group.'
         Should -Invoke Get-SPAllowedSender -Times 1 -Exactly
     }
 
@@ -94,7 +94,7 @@ Describe 'Test-SPSenderAllowed' {
         $result.Allowed | Should -BeFalse
         $result.MatchedSender | Should -BeNullOrEmpty
         $result.Notes.Count | Should -Be 1
-        $result.Notes[0] | Should -Be "SenderAddress 'sender@example.com' is not in the SmailPost-Senders group."
+        $result.Notes[0] | Should -Be "SenderAddress 'sender@example.com' is not in the C-S-mailPost-Senders group."
         Should -Invoke Get-SPAllowedSender -Times 1 -Exactly
     }
 

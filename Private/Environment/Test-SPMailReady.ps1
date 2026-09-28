@@ -7,7 +7,7 @@ function Test-SPMailReady {
         Test-SPMailReady performs a lightweight readiness check for the SmailPost mail engine.
         It verifies that stored Graph credentials are complete, confirms that Microsoft Graph
         app-only authentication works, and confirms that at least one allowed sender can be
-        retrieved from the SmailPost-Senders group.
+        retrieved from the C-S-mailPost-Senders group.
 
         This command does not install, repair, or configure anything. It only reports whether
         the current environment is ready to send mail.
@@ -118,7 +118,7 @@ function Test-SPMailReady {
             $result.AllowedSenderCount = $allowedSenders.Count
 
             if ($allowedSenders.Count -le 0) {
-                Add-ReadyNote -Message "No valid allowed senders were found in group 'SmailPost-Senders'."
+                Add-ReadyNote -Message "No valid allowed senders were found in group 'C-S-mailPost-Senders'."
                 $stopProcessing = $true
             }
             else {

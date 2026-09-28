@@ -238,4 +238,148 @@ Describe 'Test-SPMailJobSetup' {
         $result.Status | Should -Be 'Invalid'
         $result.Issues.Code | Should -Contain 'Attachment.Invalid'
     }
+
+    It 'Returns Valid when inline image definition is correct' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate '<img src="cid:connected-logo">' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Valid'
+        $result.Issues.Count | Should -Be 0
+
+        Should -Invoke Test-SPAttachmentPath -Times 1 -Exactly -ParameterFilter {
+            $Path -eq 'C:\Temp\connected-logo.png'
+        }
+    }
+
+    It 'Returns Invalid when inline image definition is null' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body' `
+            -InlineImages @($null)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'JobSetup.InlineImage.Null'
+    }
+
+    It 'Returns Invalid when inline image Path is whitespace' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = '   '
+            ContentId = 'connected-logo'
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'JobSetup.InlineImage.Path.Empty'
+
+        Should -Invoke Test-SPAttachmentPath -Times 0
+    }
+
+    It 'Returns Invalid when inline image ContentId is whitespace' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = '   '
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'JobSetup.InlineImage.ContentId.Empty'
+    }
+
+    It 'Returns Invalid when inline image ContentId is duplicated regardless of casing' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $inlineImages = @(
+            [pscustomobject]@{
+                Path      = 'C:\Temp\logo-one.png'
+                ContentId = 'connected-logo'
+            },
+            [pscustomobject]@{
+                Path      = 'C:\Temp\logo-two.png'
+                ContentId = 'CONNECTED-LOGO'
+            }
+        )
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body' `
+            -InlineImages $inlineImages
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'JobSetup.InlineImage.ContentId.Duplicate'
+
+        Should -Invoke Test-SPAttachmentPath -Times 2 -Exactly
+    }
 }

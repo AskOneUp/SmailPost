@@ -72,5 +72,14 @@ Describe "Resolve-SPPlaceholder" {
 
         $result.ResolvedText | Should -Be 'Donald says hello to Donald.'
     }
+        It "Preserves spaces in replacement values without regex escaping" {
+        $values = [pscustomobject]@{
+            Naam = 'Donald Daemers'
+        }
+
+        $result = Resolve-SPPlaceholder -Text 'Beste {Naam},' -Values $values
+
+        $result.ResolvedText | Should -Be 'Beste Donald Daemers,'
+    }
 
 }

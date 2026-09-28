@@ -55,6 +55,8 @@ Describe "ConvertTo-SPMailRender" {
     }
 
     It 'Returns Valid and renders recipient subject body and attachments when input is correct' {
+        # Proves the existing render workflow remains unchanged.
+
         $row = [pscustomobject]@{
             Email     = '  donald@example.com  '
             FirstName = 'Donald'
@@ -79,6 +81,7 @@ Describe "ConvertTo-SPMailRender" {
         $result.Body | Should -Be 'Welcome to AskOneUp'
         $result.Attachments.Count | Should -Be 1
         $result.Attachments[0] | Should -Be $testDriveAttachmentPath
+        $result.InlineImages.Count | Should -Be 0
     }
 
     It 'Returns Invalid when recipient column is missing on the row' {
@@ -167,5 +170,234 @@ Describe "ConvertTo-SPMailRender" {
 
         $result.Status | Should -Be 'Invalid'
         $result.Issues.Code | Should -Contain 'MailRender.ATTACHMENT_NOT_FOUND'
+    }
+
+    It 'Returns an empty inline image collection when no inline images are supplied' {
+        # Proves the new property is present without changing the default workflow.
+
+        $row = [pscustomobject]@{
+            Email     = 'donald@example.com'
+            FirstName = 'Donald'
+            Company   = 'AskOneUp'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 7 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -BodyTemplate 'Welcome to {Company}'
+
+        $result.Status | Should -Be 'Valid'
+        $result.InlineImages.Count | Should -Be 0
+    }
+
+    It 'Returns a resolved inline image with its ContentId' {
+        # Proves a valid inline image is carried into the render result.
+
+        $row = [pscustomobject]@{
+            Email     = 'donald@example.com'
+            FirstName = 'Donald'
+            Company   = 'AskOneUp'
+        }
+
+        $imagePath = Join-Path $TestDrive 'connected-logo.png'
+        [System.IO.File]::WriteAllBytes(
+            $imagePath,
+            [byte[]](1, 2, 3, 4)
+        )
+
+        $inlineImage = [pscustomobject]@{
+            Path      = $imagePath
+            ContentId = 'connected-logo'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 8 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -BodyTemplate '<img src="cid:connected-logo">' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Valid'
+        $result.Issues.Count | Should -Be 0
+        $result.InlineImages.Count | Should -Be 1
+        $result.InlineImages[0].Path | Should -Be $imagePath
+        $result.InlineImages[0].ContentId | Should -Be 'connected-logo'
+    }
+
+    It 'Trims whitespace around inline image ContentId' {
+        # Proves ContentId is normalized before entering the send workflow.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $imagePath = Join-Path $TestDrive 'trim-logo.png'
+        [System.IO.File]::WriteAllBytes(
+            $imagePath,
+            [byte[]](1, 2, 3)
+        )
+
+        $inlineImage = [pscustomobject]@{
+            Path      = $imagePath
+            ContentId = '  connected-logo  '
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 9 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate '<img src="cid:connected-logo">' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Valid'
+        $result.InlineImages.Count | Should -Be 1
+        $result.InlineImages[0].ContentId | Should -Be 'connected-logo'
+    }
+
+    It 'Returns ordinary attachments and inline images together' {
+        # Proves both resource types can coexist in one render object.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $attachmentPath = Join-Path $TestDrive 'manual.pdf'
+        $imagePath = Join-Path $TestDrive 'mixed-logo.png'
+
+        [System.IO.File]::WriteAllBytes(
+            $attachmentPath,
+            [byte[]](1, 2, 3)
+        )
+
+        [System.IO.File]::WriteAllBytes(
+            $imagePath,
+            [byte[]](4, 5, 6)
+        )
+
+        $inlineImage = [pscustomobject]@{
+            Path      = $imagePath
+            ContentId = 'connected-logo'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 10 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate '<img src="cid:connected-logo">' `
+            -AttachmentPaths @($attachmentPath) `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Valid'
+        $result.Attachments.Count | Should -Be 1
+        $result.Attachments[0] | Should -Be $attachmentPath
+        $result.InlineImages.Count | Should -Be 1
+        $result.InlineImages[0].Path | Should -Be $imagePath
+        $result.InlineImages[0].ContentId | Should -Be 'connected-logo'
+    }
+
+    It 'Returns Invalid when an inline image definition is null' {
+        # Proves null inline image definitions become render validation issues.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 11 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate 'Test' `
+            -InlineImages @($null)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'MailRender.InlineImage.Null'
+        $result.InlineImages.Count | Should -Be 0
+    }
+
+    It 'Returns Invalid when inline image Path is whitespace' {
+        # Proves every inline image requires a usable path.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = '   '
+            ContentId = 'connected-logo'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 12 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate 'Test' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'MailRender.InlineImage.Path.Empty'
+        $result.InlineImages.Count | Should -Be 0
+    }
+
+    It 'Returns Invalid when inline image ContentId is whitespace' {
+        # Proves every inline image requires a usable CID.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $imagePath = Join-Path $TestDrive 'missing-cid.png'
+        [System.IO.File]::WriteAllBytes(
+            $imagePath,
+            [byte[]](1, 2, 3)
+        )
+
+        $inlineImage = [pscustomobject]@{
+            Path      = $imagePath
+            ContentId = '   '
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 13 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate 'Test' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'MailRender.InlineImage.ContentId.Empty'
+        $result.InlineImages.Count | Should -Be 0
+    }
+
+    It 'Returns Invalid when an inline image path does not exist' {
+        # Proves inline images use the existing attachment-path validation.
+
+        $row = [pscustomobject]@{
+            Email = 'donald@example.com'
+        }
+
+        $inlineImage = [pscustomobject]@{
+            Path      = (Join-Path $TestDrive 'ghost-logo.png')
+            ContentId = 'connected-logo'
+        }
+
+        $result = ConvertTo-SPMailRender `
+            -Row $row `
+            -RowNumber 14 `
+            -RecipientColumn 'Email' `
+            -SubjectTemplate 'Test' `
+            -BodyTemplate 'Test' `
+            -InlineImages @($inlineImage)
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'MailRender.ATTACHMENT_NOT_FOUND'
+        $result.InlineImages.Count | Should -Be 0
     }
 }

@@ -6,7 +6,8 @@ function Test-SPMailJobSetup {
     .DESCRIPTION
     Performs preflight validation for the mail job configuration, including
     CSV availability, recipient column selection, sender selection, template
-    presence, placeholder and header alignment, and attachment path validation.
+    presence, placeholder and header alignment, attachment path validation,
+    and inline image validation.
 
     .PARAMETER CsvImportResult
     The imported CSV result object.
@@ -25,6 +26,15 @@ function Test-SPMailJobSetup {
 
     .PARAMETER AttachmentPaths
     Optional attachment file paths to validate.
+
+    .PARAMETER InlineImages
+    Optional inline image definitions to validate.
+
+    Each inline image definition must contain:
+    - Path
+    - ContentId
+
+    ContentId values must be unique within the mail job.
 
     .OUTPUTS
     PSCustomObject with:
@@ -50,7 +60,10 @@ function Test-SPMailJobSetup {
         [string]$BodyTemplate,
 
         [Parameter()]
-        [string[]]$AttachmentPaths = @()
+        [string[]]$AttachmentPaths = @(),
+
+        [Parameter()]
+        [object[]]$InlineImages = @()
     )
 
     $issues = [System.Collections.Generic.List[object]]::new()
@@ -153,6 +166,83 @@ function Test-SPMailJobSetup {
             $issues.Add($issue)
         }
     }
+
+    # ========================
+    # Validate inline images.
+    # ========================
+
+    $contentIds = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+
+    foreach ($inlineImage in @($InlineImages)) {
+        if ($null -eq $inlineImage) {
+            $issues.Add((
+                    ConvertTo-SPValidationIssue `
+                        -Severity 'Error' `
+                        -Code 'JobSetup.InlineImage.Null' `
+                        -Category 'Attachment' `
+                        -Message 'Inline image definition cannot be null.' `
+                        -Target 'InlineImages'
+                ))
+
+            continue
+        }
+
+        $inlinePath = [string]$inlineImage.Path
+        $contentId = [string]$inlineImage.ContentId
+
+        if ([string]::IsNullOrWhiteSpace($inlinePath)) {
+            $issues.Add((
+                    ConvertTo-SPValidationIssue `
+                        -Severity 'Error' `
+                        -Code 'JobSetup.InlineImage.Path.Empty' `
+                        -Category 'Attachment' `
+                        -Message 'Inline image path cannot be null, empty, or whitespace.' `
+                        -Target 'InlineImages'
+                ))
+        }
+        else {
+            $attachmentIssues = @(Test-SPAttachmentPath -Path $inlinePath)
+
+            foreach ($issue in $attachmentIssues) {
+                $issues.Add($issue)
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($contentId)) {
+            $issues.Add((
+                    ConvertTo-SPValidationIssue `
+                        -Severity 'Error' `
+                        -Code 'JobSetup.InlineImage.ContentId.Empty' `
+                        -Category 'Attachment' `
+                        -Message 'Inline image ContentId cannot be null, empty, or whitespace.' `
+                        -Target 'InlineImages'
+                ))
+
+            continue
+        }
+
+        $normalizedContentId = $contentId.Trim()
+
+        if (-not $contentIds.Add($normalizedContentId)) {
+            $issues.Add((
+                    ConvertTo-SPValidationIssue `
+                        -Severity 'Error' `
+                        -Code 'JobSetup.InlineImage.ContentId.Duplicate' `
+                        -Category 'Attachment' `
+                        -Message "Inline image ContentId '$normalizedContentId' is duplicated." `
+                        -Target 'InlineImages' `
+                        -Details @{
+                        ContentId = $normalizedContentId
+                    }
+                ))
+        }
+    }
+
+    # ========================
+    # Resolve validation status.
+    # ========================
 
     $status = Resolve-SPValidationStatus -Issues $issues
 

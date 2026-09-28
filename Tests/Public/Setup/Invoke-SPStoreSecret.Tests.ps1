@@ -117,7 +117,7 @@ Describe 'Invoke-SPStoreSecret' {
 
             Invoke-SPStoreSecret -Unattended -TenantId 'tenant' -AppId 'app' -Secret $script:SecureSecret -Force -WhatIf
 
-            Assert-MockCalled Set-Secret -Times 0
+            Should -Invoke -CommandName Set-Secret -Times 0
         }
 
         It 'Throws when the vault is missing outside WhatIf' {
@@ -234,7 +234,7 @@ Describe 'Invoke-SPStoreSecret' {
 
             Invoke-SPStoreSecret -Secret $script:SecureSecret -Force
 
-            Assert-MockCalled Unlock-SecretStore -Times 1
+            Should -Invoke -CommandName Unlock-SecretStore -Times 1
             $script:SetSecretCalls | Should -Be 1
         }
     }
@@ -257,6 +257,7 @@ Describe 'Invoke-SPStoreSecret' {
 
             $script:SetSecretCalls | Should -Be 0
         }
+
         It 'Accepts a pasted client secret in interactive mode and stores it as a SecureString' {
 
             # Simulate the interactive prompts, including a pasted plaintext client secret.

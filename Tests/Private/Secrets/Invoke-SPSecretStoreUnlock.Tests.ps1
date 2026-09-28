@@ -22,7 +22,7 @@ Describe 'Invoke-SPSecretStoreUnlock' {
         It 'Calls Unlock-SecretStore when invoked' {
             Invoke-SPSecretStoreUnlock
 
-            Assert-MockCalled Unlock-SecretStore -Times 1 -Exactly
+            Should -Invoke -CommandName Unlock-SecretStore -Times 1 -Exactly
         }
     }
 

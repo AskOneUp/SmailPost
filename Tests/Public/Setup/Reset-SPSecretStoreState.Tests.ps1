@@ -140,8 +140,8 @@ Describe 'Reset-SPSecretStoreState' {
             $result.Notes[1] | Should -Be "Secret 'SmailPost-GraphClientSecret' does not exist."
             $result.Notes[2] | Should -Be "Vault 'SmailPost' unregistered."
 
-            Assert-MockCalled Remove-Secret -Times 0
-            Assert-MockCalled Unregister-SecretVault -Times 1
+            Should -Invoke -CommandName Remove-Secret -Times 0
+            Should -Invoke -CommandName Unregister-SecretVault -Times 1
         }
     }
 
@@ -163,8 +163,8 @@ Describe 'Reset-SPSecretStoreState' {
             $result.Notes[2] | Should -Be "Secret 'SmailPost-GraphClientSecret' removed."
             $result.Notes[3] | Should -Be "Vault 'SmailPost' unregistered."
 
-            Assert-MockCalled Remove-Secret -Times 1
-            Assert-MockCalled Unregister-SecretVault -Times 1
+            Should -Invoke -CommandName Remove-Secret -Times 1
+            Should -Invoke -CommandName Unregister-SecretVault -Times 1
         }
 
         It 'Treats secret lookup errors as secret missing' {
@@ -228,8 +228,8 @@ Describe 'Reset-SPSecretStoreState' {
             $result.SecretRemoved | Should -BeFalse
             $result.VaultRemoved | Should -BeFalse
 
-            Assert-MockCalled Remove-Secret -Times 0
-            Assert-MockCalled Unregister-SecretVault -Times 0
+            Should -Invoke -CommandName Remove-Secret -Times 0
+            Should -Invoke -CommandName Unregister-SecretVault -Times 0
         }
     }
 }

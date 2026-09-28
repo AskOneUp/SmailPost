@@ -45,7 +45,7 @@ Send-SPMail `
 - Per-recipient send results
 - JSON and CSV reporting
 - Secure credential storage with SecretStore
-- Sender allow-list through the `SmailPost-Senders` group
+- Sender allow-list through the `C-S-mailPost-Senders` group
 - Full Pester test coverage
 
 ---
@@ -130,7 +130,7 @@ Export-SPMailJobReport `
 - Microsoft Entra group:
 
 ```
-SmailPost-Senders
+C-S-mailPost-Senders
 ```
 
 Only mail-enabled users in this group are allowed senders.

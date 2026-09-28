@@ -65,7 +65,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Failed to retrieve sender group 'SmailPost-Senders'. Graph exploded."
+            } | Should -Throw "Failed to retrieve sender group 'C-S-mailPost-Senders'. Graph exploded."
         }
 
         It 'Throws when group lookup returns null' {
@@ -85,7 +85,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Failed to retrieve sender group 'SmailPost-Senders'."
+            } | Should -Throw "Failed to retrieve sender group 'C-S-mailPost-Senders'."
         }
 
         It 'Throws when no sender group is found' {
@@ -107,7 +107,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Sender group 'SmailPost-Senders' was not found."
+            } | Should -Throw "Sender group 'C-S-mailPost-Senders' was not found."
         }
 
         It 'Throws when multiple sender groups are found' {
@@ -124,11 +124,11 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         },
                         [pscustomobject]@{
                             id          = 'group-2'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -138,7 +138,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Multiple groups named 'SmailPost-Senders' were found. Use a unique group name or switch to GroupId-based lookup."
+            } | Should -Throw "Multiple groups named 'C-S-mailPost-Senders' were found. Use a unique group name or switch to GroupId-based lookup."
         }
 
         It 'Throws when the sender group id is missing' {
@@ -155,7 +155,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = '   '
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -165,7 +165,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Sender group 'SmailPost-Senders' was found, but its Id is missing."
+            } | Should -Throw "Sender group 'C-S-mailPost-Senders' was found, but its Id is missing."
         }
     }
 
@@ -184,7 +184,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -200,7 +200,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Failed to retrieve members for sender group 'SmailPost-Senders'. Members endpoint failed."
+            } | Should -Throw "Failed to retrieve members for sender group 'C-S-mailPost-Senders'. Members endpoint failed."
         }
 
         It 'Throws when member lookup returns null' {
@@ -217,7 +217,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -233,7 +233,7 @@ Describe 'Get-SPAllowedSender' {
 
             {
                 Get-SPAllowedSender
-            } | Should -Throw "Failed to retrieve members for sender group 'SmailPost-Senders'."
+            } | Should -Throw "Failed to retrieve members for sender group 'C-S-mailPost-Senders'."
         }
     }
 
@@ -252,7 +252,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -289,7 +289,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -350,7 +350,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -427,7 +427,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }
@@ -498,7 +498,7 @@ Describe 'Get-SPAllowedSender' {
                     value = @(
                         [pscustomobject]@{
                             id          = 'group-1'
-                            displayName = 'SmailPost-Senders'
+                            displayName = 'C-S-mailPost-Senders'
                         }
                     )
                 }

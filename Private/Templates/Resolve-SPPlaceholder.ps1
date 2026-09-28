@@ -16,6 +16,7 @@ Resolution rules:
 - If a matching row value is null or empty, the placeholder is replaced
   with an empty string.
 - If no matching row property exists, the placeholder is left unchanged.
+- Replacement values are inserted literally without regex escaping.
 
 This function is used by preview rendering and send preparation after
 placeholder validation has already completed successfully.
@@ -77,10 +78,18 @@ Used by preview rendering and final mail preparation.
                 $replacementValue = ''
             }
 
-            $escapedReplacementValue = [System.Text.RegularExpressions.Regex]::Escape($replacementValue)
-            $escapedReplacementValue = $escapedReplacementValue.Replace('\$', '$$')
+            $literalReplacement = $replacementValue
 
-            $resolvedText = $resolvedText -replace $escapedPlaceholder, $escapedReplacementValue
+            $resolvedText = [regex]::Replace(
+                $resolvedText,
+                $escapedPlaceholder,
+                [System.Text.RegularExpressions.MatchEvaluator]{
+                    param($match)
+
+                    $null = $match
+                    return $literalReplacement
+                }
+            )
         }
         else {
             $unresolvedPlaceholders += $placeholderName

@@ -5,7 +5,7 @@ function Test-SPSenderAllowed {
 
         .DESCRIPTION
         Test-SPSenderAllowed checks if the provided sender email address exists in the
-        SmailPost-Senders group retrieved through Get-SPAllowedSender.
+        C-S-mailPost-Senders group retrieved through Get-SPAllowedSender.
 
         The function returns a structured result indicating whether the sender is valid.
 
@@ -46,7 +46,7 @@ function Test-SPSenderAllowed {
             $allowedSenders = @(Get-SPAllowedSender)
 
             if ($allowedSenders.Count -eq 0) {
-                $notes.Add('No allowed senders were returned from the SmailPost-Senders group.')
+                $notes.Add('No allowed senders were returned from the C-S-mailPost-Senders group.')
                 return
             }
 
@@ -61,7 +61,7 @@ function Test-SPSenderAllowed {
                 $notes.Add("SenderAddress '$SenderAddress' is allowed.")
             }
             else {
-                $notes.Add("SenderAddress '$SenderAddress' is not in the SmailPost-Senders group.")
+                $notes.Add("SenderAddress '$SenderAddress' is not in the C-S-mailPost-Senders group.")
             }
         }
         catch {

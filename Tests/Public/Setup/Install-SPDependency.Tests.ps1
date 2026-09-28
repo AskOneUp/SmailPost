@@ -123,8 +123,8 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency
 
-            Assert-MockCalled Register-PSRepository -Times 1 -Exactly
-            Assert-MockCalled Set-PSRepository -Times 0
+            Should -Invoke -CommandName Register-PSRepository -Times 1 -Exactly
+            Should -Invoke -CommandName Set-PSRepository -Times 0
         }
 
         It 'Sets PSGallery to trusted when repository is present but not trusted' {
@@ -167,8 +167,8 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency
 
-            Assert-MockCalled Set-PSRepository -Times 1 -Exactly
-            Assert-MockCalled Register-PSRepository -Times 0
+            Should -Invoke -CommandName Set-PSRepository -Times 1 -Exactly
+            Should -Invoke -CommandName Register-PSRepository -Times 0
         }
 
         It 'Throws when PSGallery registration fails' {
@@ -281,7 +281,7 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency -PreferLatest:$false
 
-            Assert-MockCalled Find-Module -Times 0
+            Should -Invoke -CommandName Find-Module -Times 0
         }
 
         It 'Pins to minimum when gallery returns a lower version' {
@@ -419,7 +419,7 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency
 
-            Assert-MockCalled Install-Module -Times 0
+            Should -Invoke -CommandName Install-Module -Times 0
         }
 
         It 'Installs even when desired version is already present when Force is used' {
@@ -460,7 +460,7 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency -Force
 
-            Assert-MockCalled Install-Module -Times 4
+            Should -Invoke -CommandName Install-Module -Times 4
         }
 
         It 'Keeps installed version when installation fails but a fallback version exists' {
@@ -733,10 +733,10 @@ Describe 'Install-SPDependency' {
 
             Install-SPDependency -WhatIf
 
-            Assert-MockCalled Register-PSRepository -Times 0
-            Assert-MockCalled Set-PSRepository -Times 0
-            Assert-MockCalled Install-Module -Times 0
-            Assert-MockCalled Import-Module -Times 0
+            Should -Invoke -CommandName Register-PSRepository -Times 0
+            Should -Invoke -CommandName Set-PSRepository -Times 0
+            Should -Invoke -CommandName Install-Module -Times 0
+            Should -Invoke -CommandName Import-Module -Times 0
         }
 
         It 'Throws when a required command is still missing after install and import' {

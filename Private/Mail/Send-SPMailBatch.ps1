@@ -11,6 +11,7 @@ Send-SPMail.
 This function:
 - validates the rendered item collection
 - sends one rendered item at a time
+- forwards ordinary attachments and inline images
 - collects standardized per-row send results
 - determines the overall batch status
 
@@ -19,6 +20,10 @@ mail items.
 
 .PARAMETER RenderItems
 The rendered mail items to send.
+
+Rendered items can contain:
+- Attachments
+- InlineImages
 
 .PARAMETER SenderAddress
 The sender mailbox address used for the batch.
@@ -69,6 +74,28 @@ Used after ConvertTo-SPMailRender and before reporting or export.
             continue
         }
 
+        # ========================
+        # Resolve rendered resources.
+        # ========================
+
+        $attachments = @()
+
+        if ($null -ne $renderItem.PSObject.Properties['Attachments']) {
+            $attachments = @($renderItem.Attachments)
+        }
+
+        $inlineImages = @()
+
+        if ($null -ne $renderItem.PSObject.Properties['InlineImages']) {
+            $inlineImages = @($renderItem.InlineImages)
+        }
+
+        $attachmentCount = $attachments.Count + $inlineImages.Count
+
+        # ========================
+        # Handle invalid renders.
+        # ========================
+
         if ($renderItem.Status -ne 'Valid') {
             $results.Add((
                     ConvertTo-SPSendResult `
@@ -80,19 +107,24 @@ Used after ConvertTo-SPMailRender and before reporting or export.
                         -Status 'Failed' `
                         -ErrorMessage 'Render item is not valid for sending.' `
                         -AttemptedOn $attemptedOn `
-                        -AttachmentCount $renderItem.Attachments.Count `
+                        -AttachmentCount $attachmentCount `
                         -BatchId $batchId
                 ))
 
             continue
         }
 
+        # ========================
+        # Send rendered mail.
+        # ========================
+
         $sendResults = @(Send-SPMail `
                 -SenderAddress $SenderAddress `
                 -To @($renderItem.Recipient) `
                 -Subject $renderItem.Subject `
                 -HtmlBody $renderItem.Body `
-                -AttachmentPath @($renderItem.Attachments) `
+                -AttachmentPath $attachments `
+                -InlineImage $inlineImages `
                 -SaveToSentItems $SaveToSentItems `
                 -Confirm:$false)
 
@@ -107,12 +139,16 @@ Used after ConvertTo-SPMailRender and before reporting or export.
                         -Status 'Failed' `
                         -ErrorMessage 'Send-SPMail returned no result.' `
                         -AttemptedOn $attemptedOn `
-                        -AttachmentCount $renderItem.Attachments.Count `
+                        -AttachmentCount $attachmentCount `
                         -BatchId $batchId
                 ))
 
             continue
         }
+
+        # ========================
+        # Convert send result.
+        # ========================
 
         $sendResult = $sendResults[0]
 
@@ -126,10 +162,14 @@ Used after ConvertTo-SPMailRender and before reporting or export.
                     -Status $sendResult.Status `
                     -ErrorMessage $sendResult.ErrorMessage `
                     -AttemptedOn $sendResult.AttemptedOn `
-                    -AttachmentCount $renderItem.Attachments.Count `
+                    -AttachmentCount $attachmentCount `
                     -BatchId $batchId
             ))
     }
+
+    # ========================
+    # Build batch result.
+    # ========================
 
     $resultArray = @($results)
     $status = Resolve-SPBatchStatus -Results $resultArray

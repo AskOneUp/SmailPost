@@ -8,16 +8,23 @@ Describe 'Send-SPMailBatch' {
             function Send-SPMail {
                 param (
                     $SenderAddress,
-                    $RecipientAddress,
+                    $To,
                     $Subject,
-                    $Body,
-                    $Attachments
+                    $HtmlBody,
+                    $AttachmentPath,
+                    $InlineImage,
+                    $SaveToSentItems,
+                    $Confirm
                 )
+
                 $null = $SenderAddress
-                $null = $RecipientAddress
+                $null = $To
                 $null = $Subject
-                $null = $Body
-                $null = $Attachments
+                $null = $HtmlBody
+                $null = $AttachmentPath
+                $null = $InlineImage
+                $null = $SaveToSentItems
+                $null = $Confirm
             }
         }
 
@@ -25,6 +32,7 @@ Describe 'Send-SPMailBatch' {
         . (Join-Path $script:ModuleRoot 'Private\Reporting\Resolve-SPBatchStatus.ps1')
         . (Join-Path $script:ModuleRoot 'Private\Mail\Send-SPMailBatch.ps1')
     }
+
     BeforeEach {
         Mock ConvertTo-SPSendResult {
             param (
@@ -77,7 +85,14 @@ Describe 'Send-SPMailBatch' {
 
         Mock Send-SPMail {
             param (
-                $To
+                $SenderAddress,
+                $To,
+                $Subject,
+                $HtmlBody,
+                $AttachmentPath,
+                $InlineImage,
+                $SaveToSentItems,
+                $Confirm
             )
 
             return @(
@@ -176,9 +191,7 @@ Describe 'Send-SPMailBatch' {
 
     It 'Returns Partial when some items succeed and some fail' {
         Mock Send-SPMail {
-            param (
-                $To
-            )
+            param ($To)
 
             if ($To[0] -eq 'user1@example.com') {
                 return @(
@@ -238,5 +251,148 @@ Describe 'Send-SPMailBatch' {
                 -RenderItems @() `
                 -SenderAddress '   '
         } | Should -Throw 'SenderAddress cannot be null, empty, or whitespace.'
+    }
+
+    It 'Supports legacy render items without an InlineImages property' {
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber   = 5
+                Recipient   = 'legacy@example.com'
+                Subject     = 'Legacy'
+                Body        = '<p>Legacy</p>'
+                Attachments = @()
+                Status      = 'Valid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com'
+
+        $result.Status | Should -Be 'Sent'
+        $result.Results[0].AttachmentCount | Should -Be 0
+
+        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+            @($InlineImage).Count -eq 0
+        }
+    }
+
+    It 'Forwards inline images to Send-SPMail' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber    = 6
+                Recipient    = 'user@example.com'
+                Subject      = 'Inline'
+                Body         = '<img src="cid:connected-logo">'
+                Attachments  = @()
+                InlineImages = @($inlineImage)
+                Status       = 'Valid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com'
+
+        $result.Status | Should -Be 'Sent'
+
+        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+            $InlineImage.Count -eq 1 -and
+            $InlineImage[0].Path -eq 'C:\Temp\connected-logo.png' -and
+            $InlineImage[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Forwards ordinary attachments and inline images together' {
+        $inlineImage = [pscustomobject]@{
+            Path      = 'C:\Temp\connected-logo.png'
+            ContentId = 'connected-logo'
+        }
+
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber    = 7
+                Recipient    = 'user@example.com'
+                Subject      = 'Mixed'
+                Body         = '<img src="cid:connected-logo">'
+                Attachments  = @('C:\Temp\manual.pdf')
+                InlineImages = @($inlineImage)
+                Status       = 'Valid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com'
+
+        $result.Status | Should -Be 'Sent'
+
+        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+            $AttachmentPath.Count -eq 1 -and
+            $AttachmentPath[0] -eq 'C:\Temp\manual.pdf' -and
+            $InlineImage.Count -eq 1 -and
+            $InlineImage[0].ContentId -eq 'connected-logo'
+        }
+    }
+
+    It 'Counts ordinary attachments and inline images in AttachmentCount' {
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber    = 8
+                Recipient    = 'user@example.com'
+                Subject      = 'Count'
+                Body         = '<p>Body</p>'
+                Attachments  = @(
+                    'C:\Temp\one.pdf',
+                    'C:\Temp\two.pdf'
+                )
+                InlineImages = @(
+                    [pscustomobject]@{
+                        Path      = 'C:\Temp\logo.png'
+                        ContentId = 'logo'
+                    }
+                )
+                Status       = 'Valid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com'
+
+        $result.Results[0].AttachmentCount | Should -Be 3
+    }
+
+    It 'Counts inline images for an invalid render item without sending it' {
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber    = 9
+                Recipient    = 'broken@example.com'
+                Subject      = 'Broken'
+                Body         = '<p>Broken</p>'
+                Attachments  = @('C:\Temp\manual.pdf')
+                InlineImages = @(
+                    [pscustomobject]@{
+                        Path      = 'C:\Temp\logo.png'
+                        ContentId = 'logo'
+                    }
+                )
+                Status       = 'Invalid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com'
+
+        $result.Status | Should -Be 'Failed'
+        $result.Results[0].AttachmentCount | Should -Be 2
+
+        Should -Invoke Send-SPMail -Times 0
     }
 }

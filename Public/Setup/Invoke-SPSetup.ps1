@@ -366,7 +366,7 @@ function Invoke-SPSetup {
 
                     $notes = @(
                         "Allowed sender validation succeeded.",
-                        "Found $($allowedSenders.Count) valid sender(s) in group 'SmailPost-Senders'."
+                        "Found $($allowedSenders.Count) valid sender(s) in group 'C-S-mailPost-Senders'."
                     )
 
                     if (-not [string]::IsNullOrWhiteSpace($senderPreview)) {
@@ -377,7 +377,7 @@ function Invoke-SPSetup {
                 }
                 else {
                     Set-SectionStatus -Name 'AllowedSenders' -Status '⏭️' -Notes @(
-                        "Group 'SmailPost-Senders' is reachable, but no valid senders were found.",
+                        "Group 'C-S-mailPost-Senders' is reachable, but no valid senders were found.",
                         "Only users with a populated mail attribute are accepted.",
                         "Add one or more valid sender accounts to the group and rerun Invoke-SPSetup."
                     )
@@ -427,7 +427,7 @@ function Invoke-SPSetup {
             $summary.GraphConnection.Status -eq '✅' -and
             $summary.AllowedSenders.Status -eq '⏭️'
         ) {
-            $summary.NextStep = 'Add users with valid mail addresses to the SmailPost-Senders group'
+            $summary.NextStep = 'Add users with valid mail addresses to the C-S-mailPost-Senders group'
         }
         elseif ($summary.OverallStatus -eq '✅') {
             $summary.NextStep = 'None'

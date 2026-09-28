@@ -86,6 +86,46 @@ Describe 'ConvertTo-SPGraphAttachment' {
                 Set-Location -Path $currentLocation
             }
         }
+
+        It 'Builds an inline Graph attachment when ContentId is supplied' {
+            # Proves ContentId configures the Graph attachment as an inline resource.
+
+            $testFilePath = Join-Path -Path $TestDrive -ChildPath 'connected-logo.png'
+            [System.IO.File]::WriteAllBytes($testFilePath, [byte[]](1, 2, 3, 4))
+
+            $result = ConvertTo-SPGraphAttachment `
+                -Path $testFilePath `
+                -ContentId 'connected-logo'
+
+            $result.isInline | Should -BeTrue
+            $result.contentId | Should -Be 'connected-logo'
+        }
+
+        It 'Trims ContentId for an inline Graph attachment' {
+            # Proves surrounding whitespace is removed from the supplied content ID.
+
+            $testFilePath = Join-Path -Path $TestDrive -ChildPath 'trimmed-logo.png'
+            [System.IO.File]::WriteAllBytes($testFilePath, [byte[]](1, 2, 3, 4))
+
+            $result = ConvertTo-SPGraphAttachment `
+                -Path $testFilePath `
+                -ContentId '  connected-logo  '
+
+            $result.isInline | Should -BeTrue
+            $result.contentId | Should -Be 'connected-logo'
+        }
+
+        It 'Does not add inline properties when ContentId is not supplied' {
+            # Proves ordinary attachments retain the existing Graph payload contract.
+
+            $testFilePath = Join-Path -Path $TestDrive -ChildPath 'ordinary.pdf'
+            [System.IO.File]::WriteAllBytes($testFilePath, [byte[]](1, 2, 3, 4))
+
+            $result = ConvertTo-SPGraphAttachment -Path $testFilePath
+
+            $result.ContainsKey('isInline') | Should -BeFalse
+            $result.ContainsKey('contentId') | Should -BeFalse
+        }
     }
 
     Context 'When Path is invalid' {

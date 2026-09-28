@@ -32,6 +32,16 @@ function Invoke-SPMailJob {
         .PARAMETER AttachmentPaths
         Optional attachment file paths to include with each message.
 
+        .PARAMETER InlineImages
+        Optional inline image definitions to include with each message.
+
+        Each inline image definition must contain:
+        - Path
+        - ContentId
+
+        The ContentId can be referenced from the HTML body by using
+        cid:<ContentId>.
+
         .PARAMETER SaveToSentItems
         Indicates whether sent messages should be stored in Sent Items.
 
@@ -60,6 +70,9 @@ function Invoke-SPMailJob {
         [string[]]$AttachmentPaths = @(),
 
         [Parameter()]
+        [object[]]$InlineImages = @(),
+
+        [Parameter()]
         [bool]$SaveToSentItems = $true
     )
 
@@ -79,7 +92,8 @@ function Invoke-SPMailJob {
         -SenderAddress $SenderAddress `
         -SubjectTemplate $SubjectTemplate `
         -BodyTemplate $HtmlBodyTemplate `
-        -AttachmentPaths $AttachmentPaths
+        -AttachmentPaths $AttachmentPaths `
+        -InlineImages $InlineImages
 
     $rowValidationResults = [System.Collections.Generic.List[object]]::new()
     $renderResults = [System.Collections.Generic.List[object]]::new()
@@ -115,7 +129,8 @@ function Invoke-SPMailJob {
                 -RecipientColumn $RecipientColumn `
                 -SubjectTemplate $SubjectTemplate `
                 -BodyTemplate $HtmlBodyTemplate `
-                -AttachmentPaths $AttachmentPaths
+                -AttachmentPaths $AttachmentPaths `
+                -InlineImages $InlineImages
 
             $renderResults.Add($renderResult)
 

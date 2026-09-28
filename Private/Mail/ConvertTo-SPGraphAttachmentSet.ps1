@@ -4,23 +4,39 @@ function ConvertTo-SPGraphAttachmentSet {
         Builds a Microsoft Graph attachment collection for SmailPost.
 
         .DESCRIPTION
-        ConvertTo-SPGraphAttachmentSet converts one or more validated file paths into Microsoft Graph
-        fileAttachment payload objects by calling ConvertTo-SPGraphAttachment for each file.
+        ConvertTo-SPGraphAttachmentSet converts ordinary attachment paths and optional
+        inline image definitions into Microsoft Graph fileAttachment payload objects.
 
-        The function returns both the Graph attachment objects and summary information that can
-        be reused in send results.
+        Ordinary attachments are supplied through AttachmentPath.
+
+        Inline images are supplied through InlineImage and must contain a Path and
+        ContentId property. The ContentId can be referenced from the HTML message body
+        by using cid:<ContentId>.
+
+        The function returns the combined Graph attachment collection and summary
+        information that can be reused in send results.
 
         .PARAMETER AttachmentPath
-        One or more validated file paths.
+        One or more validated file paths that should be included as ordinary attachments.
+
+        .PARAMETER InlineImage
+        One or more inline image definitions.
+
+        Each object must contain:
+        - Path
+        - ContentId
 
         .OUTPUTS
         PSCustomObject
     #>
-    [CmdletBinding(PositionalBinding = $false, DefaultParameterSetName = 'Default')] # Voeg DefaultParameterSetName toe
+    [CmdletBinding(PositionalBinding = $false)]
     [OutputType([pscustomobject])]
     param (
-        [Parameter(ParameterSetName = 'Default')] # Koppel de parameter aan de set
-        [string[]]$AttachmentPath = @()
+        [Parameter()]
+        [string[]]$AttachmentPath = @(),
+
+        [Parameter()]
+        [object[]]$InlineImage = @()
     )
 
     $attachments = @()
@@ -30,16 +46,12 @@ function ConvertTo-SPGraphAttachmentSet {
         Attachments          = @()
         AttachmentCount      = 0
         AttachmentTotalBytes = 0L
+        InlineImageCount     = 0
         Notes                = @()
     }
 
-    if ($null -eq $AttachmentPath -or $AttachmentPath.Count -eq 0) {
-        $notes += 'No attachments supplied.'
-        $result.Notes = $notes
-        return [pscustomobject]$result
-    }
-
-    foreach ($path in $AttachmentPath) {
+    # Process ordinary attachments.
+    foreach ($path in @($AttachmentPath)) {
         if ([string]::IsNullOrWhiteSpace($path)) {
             throw 'Attachment path cannot be null, empty, or whitespace.'
         }
@@ -52,13 +64,56 @@ function ConvertTo-SPGraphAttachmentSet {
         }
 
         $attachments += ConvertTo-SPGraphAttachment -Path $resolvedPath
+
         $result.AttachmentCount += 1
         $result.AttachmentTotalBytes += [long]$fileInfo.Length
     }
 
+    # Process inline images.
+    foreach ($inlineItem in @($InlineImage)) {
+        if ($null -eq $inlineItem) {
+            throw 'Inline image definition cannot be null.'
+        }
+
+        $path = [string]$inlineItem.Path
+        $contentId = [string]$inlineItem.ContentId
+
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            throw 'Inline image path cannot be null, empty, or whitespace.'
+        }
+
+        if ([string]::IsNullOrWhiteSpace($contentId)) {
+            throw 'Inline image ContentId cannot be null, empty, or whitespace.'
+        }
+
+        $resolvedPath = (Resolve-Path -Path $path -ErrorAction Stop).ProviderPath
+        $fileInfo = Get-Item -LiteralPath $resolvedPath -ErrorAction Stop
+
+        if ($fileInfo.PSIsContainer) {
+            throw ("Inline image path '{0}' points to a folder, not a file." -f $resolvedPath)
+        }
+
+        $attachments += ConvertTo-SPGraphAttachment `
+            -Path $resolvedPath `
+            -ContentId $contentId
+
+        $result.AttachmentCount += 1
+        $result.InlineImageCount += 1
+        $result.AttachmentTotalBytes += [long]$fileInfo.Length
+    }
+
+    # Build summary information.
     $result.Attachments = $attachments
-    $notes += ("Built {0} Graph attachment object(s)." -f $result.AttachmentCount)
-    $notes += ("Combined attachment size: {0} bytes." -f $result.AttachmentTotalBytes)
+
+    if ($result.AttachmentCount -eq 0) {
+        $notes += 'No attachments supplied.'
+    }
+    else {
+        $notes += ("Built {0} Graph attachment object(s)." -f $result.AttachmentCount)
+        $notes += ("Inline images: {0}." -f $result.InlineImageCount)
+        $notes += ("Combined attachment size: {0} bytes." -f $result.AttachmentTotalBytes)
+    }
+
     $result.Notes = $notes
 
     return [pscustomobject]$result

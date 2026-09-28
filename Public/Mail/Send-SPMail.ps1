@@ -7,6 +7,12 @@ function Send-SPMail {
         Send-SPMail validates the current SmailPost environment, verifies the sender,
         validates the optional attachment set, and sends one individual email per recipient.
 
+        Ordinary file attachments can be supplied through AttachmentPath.
+
+        Inline images can be supplied through InlineImage. Each inline image definition
+        must contain a Path and ContentId property. The ContentId can be referenced from
+        the HTML message body by using cid:<ContentId>.
+
         Each recipient produces one result object so bulk sends can be reviewed, exported,
         or shown in a user interface.
 
@@ -23,7 +29,14 @@ function Send-SPMail {
         The HTML body of the email message.
 
         .PARAMETER AttachmentPath
-        Optional file paths to include as attachments.
+        Optional file paths to include as ordinary attachments.
+
+        .PARAMETER InlineImage
+        Optional inline image definitions.
+
+        Each object must contain:
+        - Path
+        - ContentId
 
         .PARAMETER SaveToSentItems
         Indicates whether sent messages should be stored in Sent Items.
@@ -31,10 +44,16 @@ function Send-SPMail {
         .PARAMETER MaxTotalAttachmentBytes
         The maximum combined attachment size allowed for this send operation.
 
+        Ordinary attachments and inline images both count toward this limit.
+
         .OUTPUTS
         PSCustomObject
     #>
-    [CmdletBinding(SupportsShouldProcess = $true, PositionalBinding = $false, ConfirmImpact = 'Medium')]
+    [CmdletBinding(
+        SupportsShouldProcess = $true,
+        PositionalBinding = $false,
+        ConfirmImpact = 'Medium'
+    )]
     [OutputType([pscustomobject[]])]
     param (
         [Parameter(Mandatory = $true)]
@@ -51,6 +70,9 @@ function Send-SPMail {
 
         [Parameter()]
         [string[]]$AttachmentPath = @(),
+
+        [Parameter()]
+        [object[]]$InlineImage = @(),
 
         [Parameter()]
         [bool]$SaveToSentItems = $true,
@@ -73,11 +95,17 @@ function Send-SPMail {
         function ThrowCombinedNotes {
             param (
                 [string[]]$Notes,
+
                 [Parameter(Mandatory = $true)]
                 [string]$FallbackMessage
             )
 
-            $message = ($Notes | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' '
+            $message = (
+                $Notes |
+                Where-Object {
+                    -not [string]::IsNullOrWhiteSpace($_)
+                }
+            ) -join ' '
 
             if ([string]::IsNullOrWhiteSpace($message)) {
                 throw $FallbackMessage
@@ -115,35 +143,55 @@ function Send-SPMail {
         $mailReadyResult = Test-SPMailReady
 
         if (-not $mailReadyResult.Ready) {
-            ThrowCombinedNotes -Notes $mailReadyResult.Notes -FallbackMessage 'SmailPost is not ready to send mail.'
+            ThrowCombinedNotes `
+                -Notes $mailReadyResult.Notes `
+                -FallbackMessage 'SmailPost is not ready to send mail.'
         }
 
         # ========================
         # Sender validation.
         # ========================
 
-        $senderValidationResult = Test-SPSenderAllowed -SenderAddress $normalizedSenderAddress
+        $senderValidationResult = Test-SPSenderAllowed `
+            -SenderAddress $normalizedSenderAddress
 
         if (-not $senderValidationResult.Allowed) {
-            ThrowCombinedNotes -Notes $senderValidationResult.Notes -FallbackMessage 'Sender is not allowed.'
+            ThrowCombinedNotes `
+                -Notes $senderValidationResult.Notes `
+                -FallbackMessage 'Sender is not allowed.'
         }
 
         $resolvedSenderIdentity = $normalizedSenderAddress
 
         if ($null -ne $senderValidationResult.MatchedSender) {
-            if (-not [string]::IsNullOrWhiteSpace($senderValidationResult.MatchedSender.Id)) {
-                $resolvedSenderIdentity = $senderValidationResult.MatchedSender.Id
+            if (
+                -not [string]::IsNullOrWhiteSpace(
+                    $senderValidationResult.MatchedSender.Id
+                )
+            ) {
+                $resolvedSenderIdentity =
+                $senderValidationResult.MatchedSender.Id
             }
-            elseif (-not [string]::IsNullOrWhiteSpace($senderValidationResult.MatchedSender.UserPrincipalName)) {
-                $resolvedSenderIdentity = $senderValidationResult.MatchedSender.UserPrincipalName
+            elseif (
+                -not [string]::IsNullOrWhiteSpace(
+                    $senderValidationResult.MatchedSender.UserPrincipalName
+                )
+            ) {
+                $resolvedSenderIdentity =
+                $senderValidationResult.MatchedSender.UserPrincipalName
             }
-            elseif (-not [string]::IsNullOrWhiteSpace($senderValidationResult.MatchedSender.Mail)) {
-                $resolvedSenderIdentity = $senderValidationResult.MatchedSender.Mail
+            elseif (
+                -not [string]::IsNullOrWhiteSpace(
+                    $senderValidationResult.MatchedSender.Mail
+                )
+            ) {
+                $resolvedSenderIdentity =
+                $senderValidationResult.MatchedSender.Mail
             }
         }
 
         # ========================
-        # Attachment validation and preparation.
+        # Ordinary attachment validation.
         # ========================
 
         $attachmentValidationResult = Test-SPAttachmentSet `
@@ -151,23 +199,88 @@ function Send-SPMail {
             -MaxTotalBytes $MaxTotalAttachmentBytes
 
         if (-not $attachmentValidationResult.Valid) {
-            ThrowCombinedNotes -Notes $attachmentValidationResult.Notes -FallbackMessage 'Attachment validation failed.'
+            ThrowCombinedNotes `
+                -Notes $attachmentValidationResult.Notes `
+                -FallbackMessage 'Attachment validation failed.'
         }
 
-        $attachmentCount = 0
-        if ($null -ne $attachmentValidationResult.AttachmentCount) {
-            $attachmentCount = [int](@($attachmentValidationResult.AttachmentCount)[0])
+        # ========================
+        # Inline image validation.
+        # ========================
+
+        $inlineImagePaths = @()
+
+        foreach ($inlineItem in @($InlineImage)) {
+            if ($null -eq $inlineItem) {
+                throw 'Inline image definition cannot be null.'
+            }
+
+            $inlinePath = [string]$inlineItem.Path
+            $contentId = [string]$inlineItem.ContentId
+
+            if ([string]::IsNullOrWhiteSpace($inlinePath)) {
+                throw 'Inline image path cannot be null, empty, or whitespace.'
+            }
+
+            if ([string]::IsNullOrWhiteSpace($contentId)) {
+                throw 'Inline image ContentId cannot be null, empty, or whitespace.'
+            }
+
+            $inlineImagePaths += $inlinePath
         }
 
-        $attachmentTotalBytes = 0L
+        $inlineValidationResult = Test-SPAttachmentSet `
+            -AttachmentPath $inlineImagePaths `
+            -MaxTotalBytes $MaxTotalAttachmentBytes
+
+        if (-not $inlineValidationResult.Valid) {
+            ThrowCombinedNotes `
+                -Notes $inlineValidationResult.Notes `
+                -FallbackMessage 'Inline image validation failed.'
+        }
+
+        # ========================
+        # Combined attachment limit.
+        # ========================
+
+        $ordinaryTotalBytes = 0L
+
         if ($null -ne $attachmentValidationResult.AttachmentTotalBytes) {
-            $attachmentTotalBytes = [long](@($attachmentValidationResult.AttachmentTotalBytes)[0])
+            $ordinaryTotalBytes = [long](
+                @($attachmentValidationResult.AttachmentTotalBytes)[0]
+            )
         }
 
-        if (@($attachmentValidationResult.ValidPaths).Count -gt 0) {
-            $attachmentSetResult = ConvertTo-SPGraphAttachmentSet -AttachmentPath $attachmentValidationResult.ValidPaths
-            $graphAttachments = @($attachmentSetResult.Attachments)
+        $inlineTotalBytes = 0L
+
+        if ($null -ne $inlineValidationResult.AttachmentTotalBytes) {
+            $inlineTotalBytes = [long](
+                @($inlineValidationResult.AttachmentTotalBytes)[0]
+            )
         }
+
+        $attachmentTotalBytes =
+        $ordinaryTotalBytes + $inlineTotalBytes
+
+        if ($attachmentTotalBytes -gt $MaxTotalAttachmentBytes) {
+            throw (
+                "Combined attachment size exceeds the maximum allowed size of {0} bytes." `
+                    -f $MaxTotalAttachmentBytes
+            )
+        }
+
+        # ========================
+        # Graph attachment preparation.
+        # ========================
+
+        $attachmentSetResult = ConvertTo-SPGraphAttachmentSet `
+            -AttachmentPath @($attachmentValidationResult.ValidPaths) `
+            -InlineImage @($InlineImage)
+
+        $graphAttachments = @($attachmentSetResult.Attachments)
+        $attachmentCount = [int]$attachmentSetResult.AttachmentCount
+        $attachmentTotalBytes =
+        [long]$attachmentSetResult.AttachmentTotalBytes
 
         # ========================
         # Recipient loop.
@@ -179,7 +292,8 @@ function Send-SPMail {
             $recipientIndex += 1
             $attemptedOn = Get-Date
 
-            $recipientValidationResult = Test-SPRecipientAddress -Recipient $recipient
+            $recipientValidationResult =
+            Test-SPRecipientAddress -Recipient $recipient
 
             if (-not $recipientValidationResult.Valid) {
                 $results += ConvertTo-SPMailResult `
@@ -189,7 +303,9 @@ function Send-SPMail {
                     -Subject $normalizedSubject `
                     -Success $false `
                     -Status 'Failed' `
-                    -ErrorMessage (($recipientValidationResult.Notes -join ' ').Trim()) `
+                    -ErrorMessage (
+                    ($recipientValidationResult.Notes -join ' ').Trim()
+                ) `
                     -AttemptedOn $attemptedOn `
                     -SaveToSentItems $SaveToSentItems `
                     -AttachmentCount $attachmentCount `
@@ -199,7 +315,8 @@ function Send-SPMail {
                 continue
             }
 
-            $normalizedRecipient = $recipientValidationResult.NormalizedRecipient
+            $normalizedRecipient =
+            $recipientValidationResult.NormalizedRecipient
 
             $payload = ConvertTo-SPGraphMailPayload `
                 -Recipient $normalizedRecipient `
@@ -208,7 +325,12 @@ function Send-SPMail {
                 -Attachments $graphAttachments `
                 -SaveToSentItems $SaveToSentItems
 
-            if (-not $PSCmdlet.ShouldProcess($normalizedRecipient, "Send mail from '$normalizedSenderAddress'")) {
+            if (
+                -not $PSCmdlet.ShouldProcess(
+                    $normalizedRecipient,
+                    "Send mail from '$normalizedSenderAddress'"
+                )
+            ) {
                 $results += ConvertTo-SPMailResult `
                     -Recipient $normalizedRecipient `
                     -RecipientIndex $recipientIndex `

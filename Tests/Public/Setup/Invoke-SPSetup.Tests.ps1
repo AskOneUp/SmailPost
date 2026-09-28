@@ -21,6 +21,7 @@ Describe 'Invoke-SPSetup' {
             $null = $Interaction
             $null = $PSCmdlet.ShouldProcess('TestShim', 'Initialize')
         }
+
         function Register-TestShimSecretVault {
             [CmdletBinding(SupportsShouldProcess = $true)]
             param([string]$Name, [string]$ModuleName)
@@ -147,7 +148,7 @@ Describe 'Invoke-SPSetup' {
             $result.Dependencies.Status | Should -Be '⏭️'
             $result.Dependencies.Notes[0] | Should -Be 'Skipped by user.'
 
-            Assert-MockCalled Install-SPDependency -Times 0
+            Should -Invoke -CommandName Install-SPDependency -Times 0
         }
 
         It 'Marks dependencies as warning when installation fails' {
@@ -221,8 +222,9 @@ Describe 'Invoke-SPSetup' {
 
             $result.SecretStore.Status | Should -Be '✅'
             ($result.SecretStore.Notes -join '|') | Should -Match "Vault 'SmailPost' created"
-            Assert-MockCalled Initialize-SecretStore -Times 1
-            Assert-MockCalled Register-SecretVault -Times 1
+
+            Should -Invoke -CommandName Initialize-SecretStore -Times 1
+            Should -Invoke -CommandName Register-SecretVault -Times 1
         }
 
         It 'Marks SecretStore as failed when locked in unattended mode' {
@@ -282,7 +284,7 @@ Describe 'Invoke-SPSetup' {
             $result = Invoke-SPSetup -Unattended
 
             $result.AllowedSenders.Status | Should -Be '⏭️'
-            $result.NextStep | Should -Be 'Add users with valid mail addresses to the SmailPost-Senders group'
+            $result.NextStep | Should -Be 'Add users with valid mail addresses to the C-S-mailPost-Senders group'
         }
 
         It 'Marks allowed sender lookup as warning when lookup fails' {
@@ -302,8 +304,8 @@ Describe 'Invoke-SPSetup' {
 
             $result | Should -Not -BeNullOrEmpty
 
-            Assert-MockCalled New-Item -Times 0
-            Assert-MockCalled Start-Transcript -Times 0
+            Should -Invoke -CommandName New-Item -Times 0
+            Should -Invoke -CommandName Start-Transcript -Times 0
         }
     }
 }

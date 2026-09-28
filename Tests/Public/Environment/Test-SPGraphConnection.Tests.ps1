@@ -85,6 +85,7 @@ Describe 'Test-SPGraphConnection' {
                 Metadata = $null
             }
         }
+
         Mock Get-Secret { throw 'Should not be called.' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -96,9 +97,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be "Secret 'SmailPost-GraphClientSecret' exists but metadata is missing."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 0 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when TenantID metadata is missing' {
@@ -110,6 +111,7 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { throw 'Should not be called.' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -120,9 +122,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be "Metadata field 'TenantID' is missing or empty on secret 'SmailPost-GraphClientSecret'."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 0 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when AppID metadata is missing' {
@@ -134,6 +136,7 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { throw 'Should not be called.' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -144,9 +147,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be "Metadata field 'AppID' is missing or empty on secret 'SmailPost-GraphClientSecret'."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 0 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when both TenantID and AppID metadata are missing' {
@@ -158,6 +161,7 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { throw 'Should not be called.' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -169,9 +173,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes[0] | Should -Be "Metadata field 'TenantID' is missing or empty on secret 'SmailPost-GraphClientSecret'."
         $result.Notes[1] | Should -Be "Metadata field 'AppID' is missing or empty on secret 'SmailPost-GraphClientSecret'."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 0 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when secret value is not a SecureString' {
@@ -183,6 +187,7 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { 'plain-text-secret' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -193,9 +198,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be "Secret 'SmailPost-GraphClientSecret' is not stored as a SecureString."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when secret value is an empty SecureString' {
@@ -209,6 +214,7 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { $script:SecureSecret }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -219,9 +225,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be "Secret 'SmailPost-GraphClientSecret' exists but the value is empty."
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure when token endpoint returns no access token' {
@@ -235,13 +241,16 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { $script:SecureSecret }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
             [pscustomobject]@{
                 access_token = ''
                 expires_in   = 3600
             }
         }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
             throw 'Should not be called.'
         }
@@ -254,10 +263,10 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be 'Token endpoint returned no access token.'
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
     }
 
     It 'Returns failure when access token format is invalid' {
@@ -271,13 +280,16 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { $script:SecureSecret }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
             [pscustomobject]@{
                 access_token = 'not-a-jwt'
                 expires_in   = 3600
             }
         }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
             throw 'Should not be called.'
         }
@@ -291,8 +303,8 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes[0] | Should -Be 'Access token acquired successfully.'
         $result.Notes[1] | Should -Be 'Access token format is invalid.'
 
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
     }
 
     It 'Returns success when token contains required roles and organization lookup succeeds' {
@@ -370,13 +382,16 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { $script:SecureSecret }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
             [pscustomobject]@{
                 access_token = $script:AccessToken
                 expires_in   = 3600
             }
         }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
             [pscustomobject]@{
                 value = @(
@@ -401,62 +416,63 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes[1] | Should -Be 'Token is missing required application roles: GroupMember.Read.All, User.Read.All.'
         $result.Notes[2] | Should -Be "Connected to Microsoft Graph tenant 'AskOneUp Empire'."
 
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 1 -Exactly
     }
 
     It 'Returns failure when organization lookup succeeds but returns no tenant data' {
-    $script:SecureSecret = ConvertTo-TestSecureString -Value 'client-secret-value'
-    $script:AccessToken = ConvertTo-TestJwtToken -Roles @(
-        'Mail.Send',
-        'GroupMember.Read.All',
-        'User.Read.All'
-    )
+        $script:SecureSecret = ConvertTo-TestSecureString -Value 'client-secret-value'
+        $script:AccessToken = ConvertTo-TestJwtToken -Roles @(
+            'Mail.Send',
+            'GroupMember.Read.All',
+            'User.Read.All'
+        )
 
-    Mock Get-SecretInfo {
-        [pscustomobject]@{
-            Metadata = @{
-                TenantID = 'tenant-id-123'
-                AppID    = 'app-id-123'
+        Mock Get-SecretInfo {
+            [pscustomobject]@{
+                Metadata = @{
+                    TenantID = 'tenant-id-123'
+                    AppID    = 'app-id-123'
+                }
             }
         }
-    }
 
-    Mock Get-Secret { $script:SecureSecret }
+        Mock Get-Secret { $script:SecureSecret }
 
-    Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
-        [pscustomobject]@{
-            access_token = $script:AccessToken
-            expires_in   = 3600
+        Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
+            [pscustomobject]@{
+                access_token = $script:AccessToken
+                expires_in   = 3600
+            }
         }
-    }
 
-    Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
-        [pscustomobject]@{
-            value = @()
+        Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
+            [pscustomobject]@{
+                value = @()
+            }
         }
+
+        $result = Test-SPGraphConnection
+
+        $result.Success | Should -BeFalse
+        $result.TokenAcquired | Should -BeTrue
+        $result.GraphConnected | Should -BeFalse
+        $result.TenantDisplayName | Should -Be ''
+
+        $null -eq $result.MissingRoles.Count | Should -BeFalse
+        $result.MissingRoles.Count | Should -Be 0
+
+        $result.Notes.Count | Should -Be 3
+        $result.Notes[0] | Should -Be 'Access token acquired successfully.'
+        $result.Notes[1] | Should -Be 'All required application roles are present in the token.'
+        $result.Notes[2] | Should -Be 'Organization call succeeded but returned no tenant data.'
     }
-
-    $result = Test-SPGraphConnection
-
-    $result.Success | Should -BeFalse
-    $result.TokenAcquired | Should -BeTrue
-    $result.GraphConnected | Should -BeFalse
-    $result.TenantDisplayName | Should -Be ''
-
-    $null -eq $result.MissingRoles.Count | Should -BeFalse
-    $result.MissingRoles.Count | Should -Be 0
-
-    $result.Notes.Count | Should -Be 3
-    $result.Notes[0] | Should -Be 'Access token acquired successfully.'
-    $result.Notes[1] | Should -Be 'All required application roles are present in the token.'
-    $result.Notes[2] | Should -Be 'Organization call succeeded but returned no tenant data.'
-}
 
     It 'Returns failure note when secret info lookup throws' {
         Mock Get-SecretInfo {
             throw 'Vault is having a dramatic episode.'
         }
+
         Mock Get-Secret { throw 'Should not be called.' }
         Mock Invoke-RestMethod { throw 'Should not be called.' }
 
@@ -468,9 +484,9 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be 'Graph connection test failed: Vault is having a dramatic episode.'
 
-        Assert-MockCalled Get-SecretInfo -Times 1 -Exactly
-        Assert-MockCalled Get-Secret -Times 0 -Exactly
-        Assert-MockCalled Invoke-RestMethod -Times 0 -Exactly
+        Should -Invoke -CommandName Get-SecretInfo -Times 1 -Exactly
+        Should -Invoke -CommandName Get-Secret -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -Times 0 -Exactly
     }
 
     It 'Returns failure note when Graph token request throws' {
@@ -484,10 +500,13 @@ Describe 'Test-SPGraphConnection' {
                 }
             }
         }
+
         Mock Get-Secret { $script:SecureSecret }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } {
             throw 'Token endpoint exploded.'
         }
+
         Mock Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } {
             throw 'Should not be called.'
         }
@@ -500,7 +519,7 @@ Describe 'Test-SPGraphConnection' {
         $result.Notes.Count | Should -Be 1
         $result.Notes[0] | Should -Be 'Graph connection test failed: Token endpoint exploded.'
 
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
-        Assert-MockCalled Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Post' } -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-RestMethod -ParameterFilter { $Method -eq 'Get' } -Times 0 -Exactly
     }
 }
