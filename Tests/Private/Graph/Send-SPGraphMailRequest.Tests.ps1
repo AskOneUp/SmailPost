@@ -1,4 +1,4 @@
-Describe 'Send-SPGraphMailRequest' {
+﻿Describe 'Send-SPGraphMailRequest' {
 
     BeforeAll {
 
@@ -81,6 +81,30 @@ Describe 'Send-SPGraphMailRequest' {
         Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
         Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly
         Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
+    }
+
+    It 'Sends the Graph request as explicit UTF-8 JSON' {
+        $payload = @{
+            message = @{
+                subject = 'Encoding test'
+                body    = @{
+                    contentType = 'HTML'
+                    content     = 'Dienst Financiën'
+                }
+            }
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload $payload
+
+        $result.Success | Should -BeTrue
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly -ParameterFilter {
+            $ContentType -eq 'application/json; charset=utf-8' -and
+            $Body -is [byte[]] -and
+            [System.Text.Encoding]::UTF8.GetString($Body) -match 'Financiën'
+        }
     }
 
     It 'Trims and URL-encodes the sender address in the request URI' {

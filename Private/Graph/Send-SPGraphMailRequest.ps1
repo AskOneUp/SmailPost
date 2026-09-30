@@ -25,6 +25,7 @@ function Send-SPGraphMailRequest {
         .OUTPUTS
         PSCustomObject
     #>
+
     [CmdletBinding(PositionalBinding = $false)]
     [OutputType([pscustomobject])]
     param (
@@ -107,10 +108,10 @@ function Send-SPGraphMailRequest {
             # Prepare the Graph request.
             # ========================
             $jsonBody = $Payload | ConvertTo-Json -Depth 10
+            $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
 
             $headers = @{
-                Authorization  = "Bearer $accessToken"
-                'Content-Type' = 'application/json'
+                Authorization = "Bearer $accessToken"
             }
 
             # ========================
@@ -129,7 +130,8 @@ function Send-SPGraphMailRequest {
                         -Method Post `
                         -Uri $requestUri `
                         -Headers $headers `
-                        -Body $jsonBody `
+                        -ContentType 'application/json; charset=utf-8' `
+                        -Body $utf8Body `
                         -ErrorAction Stop
 
                     $result.Success = $true
