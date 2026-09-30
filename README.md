@@ -6,26 +6,68 @@
 
 SmailPost is a PowerShell module for sending bulk emails through Microsoft Graph.
 
-It provides a structured pipeline:
+It provides a structured and validated mail processing pipeline:
 
-```
-CSV → Validation → Rendering → Sending → Reporting
+```text
+CSV
+ ↓
+Validation
+ ↓
+Template Rendering
+ ↓
+Attachment Processing
+ ↓
+Microsoft Graph Sending
+ ↓
+Retry Handling
+ ↓
+Reporting
 ```
 
 ---
 
-## Quick Start
+# Status
+
+SmailPost **1.0.0** is a stable release.
+
+The current release supports:
+
+- CSV-driven bulk mail jobs
+- Microsoft Graph app-only authentication
+- HTML mail templates
+- CSV placeholder replacement
+- Attachments
+- Inline images
+- Sender validation
+- Batch processing
+- Structured job reporting
+- Microsoft Graph throttling detection and automatic retry handling
+
+---
+
+# Quick Start
+
+## Install and configure
 
 ```powershell
 Import-Module ./SmailPost.psd1
 
 Install-SPDependency
+
 Invoke-SPSetup
+
 Invoke-SPStoreSecret
-Invoke-SPSetup
 ```
 
-Send a test email:
+The setup process prepares:
+
+- required PowerShell dependencies;
+- SecretStore configuration;
+- Microsoft Graph authentication requirements.
+
+---
+
+# Send a single email
 
 ```powershell
 Send-SPMail `
@@ -37,107 +79,190 @@ Send-SPMail `
 
 ---
 
-## Features
+# Features
 
-- Bulk email via Microsoft Graph
-- CSV-driven mail jobs
-- Template support with `{{Placeholders}}`
-- Per-recipient send results
-- JSON and CSV reporting
-- Secure credential storage with SecretStore
-- Sender allow-list through the `C-S-mailPost-Senders` group
+- Bulk email sending through Microsoft Graph
+- CSV-driven mail workflows
+- HTML templates with `{{Placeholders}}`
+- Per-recipient validation
+- Attachments and inline images
+- Structured batch reports
+- Secure credential storage using SecretStore
+- Sender allow-list validation through the `C-S-mailPost-Senders` group
+- Microsoft Graph throttling handling using `Retry-After`
 - Full Pester test coverage
 
 ---
 
-## Core Commands
+# Core Commands
 
 | Command | Description |
-|--------|------------|
+|---|---|
 | Install-SPDependency | Installs required PowerShell modules |
 | Invoke-SPSetup | Prepares and validates the environment |
 | Invoke-SPStoreSecret | Stores Microsoft Graph credentials |
 | Reset-SPSecretStoreState | Resets SecretStore state |
 | Test-SPEnvironment | Checks PowerShell compatibility |
-| Test-SPPrerequisite | Checks Graph reachability |
+| Test-SPPrerequisite | Checks required prerequisites |
 | Test-SPGraphConnection | Validates Graph authentication |
 | Get-SPAllowedSender | Lists allowed sender mailboxes |
-| Import-SPCsv | Imports CSV input |
-| Send-SPMail | Sends one email per recipient |
-| Invoke-SPMailJob | Runs a full CSV mail job |
-| Export-SPMailJobReport | Exports a job report |
-| Show-SPMailJobSummary | Displays a job summary |
+| Import-SPCsv | Imports and validates CSV input |
+| Send-SPMail | Sends a single email |
+| Invoke-SPMailJob | Executes a complete CSV mail workflow |
+| Export-SPMailJobReport | Exports job results |
+| Show-SPMailJobSummary | Displays job summary |
 
 ---
 
-## CSV Example
+# CSV Workflow
+
+SmailPost uses CSV files as the source for bulk mail jobs.
+
+Example:
 
 ```csv
-Email,FirstName
-john@contoso.com,John
-jane@contoso.com,Jane
+Email,Naam,Stamnummer,Paswoord,Subject
+john@contoso.com,John Doe,123456,password,Welcome
+jane@contoso.com,Jane Doe,987654,password,Welcome
 ```
 
-Template example:
+CSV values can be used inside templates:
 
-```
-Hello {{FirstName}}
+```text
+Beste {{Naam}},
+
+Je gebruikersnaam is {{Stamnummer}}.
+Je tijdelijk paswoord is {{Paswoord}}.
 ```
 
-CSV job example:
+---
+
+# Running a Mail Job
+
+Example:
 
 ```powershell
-$report = Invoke-SPMailJob `
+$Report = Invoke-SPMailJob `
     -CsvPath "C:\Data\Recipients.csv" `
     -RecipientColumn "Email" `
     -SenderAddress "no-reply@contoso.com" `
-    -SubjectTemplate "Hello {{FirstName}}" `
-    -HtmlBodyTemplate "<p>Hello {{FirstName}},</p><p>This message was sent with SmailPost.</p>"
+    -SubjectTemplate "{{Subject}}" `
+    -HtmlBodyTemplate $HtmlBody
+```
 
-Show-SPMailJobSummary -Report $report
+A mail job performs:
+
+1. CSV import
+2. Job configuration validation
+3. Row validation
+4. Template rendering
+5. Attachment processing
+6. Microsoft Graph sending
+7. Result reporting
+
+---
+
+# Microsoft Graph Throttling
+
+SmailPost automatically handles Microsoft Graph throttling.
+
+When Microsoft Graph returns a throttling response:
+
+- HTTP 429 responses are detected;
+- the `Retry-After` value is respected;
+- the send operation is retried;
+- processing continues without losing the batch.
+
+Example:
+
+```text
+Microsoft Graph throttled sendMail attempt 1.
+Retrying after 120 second(s) as requested by Retry-After.
+
+Microsoft Graph accepted the sendMail request.
 ```
 
 ---
 
-## Reports
+# Reports
 
-Export as JSON:
+Every mail job returns a structured report.
+
+Example:
+
+```text
+OverallStatus        : Sent
+TotalRows            : 76
+ValidRowCount        : 76
+RenderedCount        : 76
+SentCount            : 76
+FailedCount          : 0
+```
+
+Reports contain:
+
+- overall job status;
+- setup validation results;
+- row validation results;
+- rendered mail results;
+- sent and failed counters;
+- transport diagnostics from Microsoft Graph communication.
+
+---
+
+# Export Reports
+
+## Export JSON
 
 ```powershell
 Export-SPMailJobReport `
-    -Report $report `
+    -Report $Report `
     -Path "C:\Reports\SmailPostReport.json"
 ```
 
-Export as CSV:
+---
+
+## Export CSV
 
 ```powershell
 Export-SPMailJobReport `
-    -Report $report `
+    -Report $Report `
     -Path "C:\Reports\SmailPostReport.csv" `
     -Format Csv
 ```
 
 ---
 
-## Requirements
+# Requirements
 
 - PowerShell 7.2 or newer
-- Microsoft Graph application permissions:
-  - Mail.Send
-  - GroupMember.Read.All
-  - User.Read.All
-- Microsoft Entra group:
 
+Microsoft Graph application permissions:
+
+```text
+Mail.Send
+GroupMember.Read.All
+User.Read.All
 ```
+
+Microsoft Entra group:
+
+```text
 C-S-mailPost-Senders
 ```
 
-Only mail-enabled users in this group are allowed senders.
+Only mail-enabled users in this group are allowed as senders.
 
 ---
 
-## Development
+# Known Limitations
+
+- Long-running unattended jobs require additional credential lifecycle handling.
+- SecretStore must remain available during execution.
+
+---
+
+# Development
 
 Run tests:
 
@@ -157,24 +282,25 @@ Invoke-ScriptAnalyzer `
 
 ---
 
-## Project Structure
+# Project Structure
 
-```
-Public/      Public commands
-Private/     Internal helpers
-Tests/       Pester tests
-Docs/        Documentation
-Examples/    Example scripts
+```text
+Public/       Exported commands
+Private/      Internal implementation
+Tests/        Pester tests
+Docs/         Documentation
+Examples/     Example scripts
+.github/      CI workflows
 ```
 
 ---
 
-## Documentation
+# Documentation
 
-Full manual available in the `Docs/` folder.
+Full documentation is available in the `Docs/` folder.
 
 ---
 
-## License
+# License
 
 MIT License.
