@@ -1,5 +1,7 @@
 Describe 'Send-SPGraphMailRequest' {
+
     BeforeAll {
+
         . "$PSScriptRoot\..\..\Shared\TestBootstrap.ps1"
 
         $script:ModuleRoot = Get-SPTestProjectRoot -StartPath $PSScriptRoot
@@ -13,6 +15,7 @@ Describe 'Send-SPGraphMailRequest' {
     }
 
     BeforeEach {
+
         Mock Get-SPGraphAccessToken {
             [pscustomobject]@{
                 Success     = $true
@@ -28,6 +31,9 @@ Describe 'Send-SPGraphMailRequest' {
             [pscustomobject]@{
                 StatusCode = 202
             }
+        }
+
+        Mock Start-Sleep {
         }
     }
 
@@ -72,8 +78,9 @@ Describe 'Send-SPGraphMailRequest' {
         $result.Notes | Should -Contain 'Token roles: Mail.Send'
         $result.Notes | Should -Contain "Microsoft Graph accepted the sendMail request for sender 'askoneup@askoneup.com'."
 
-        Should -Invoke Get-SPGraphAccessToken -Times 1 -Exactly
-        Should -Invoke Invoke-WebRequest -Times 1 -Exactly
+        Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Trims and URL-encodes the sender address in the request URI' {
@@ -107,7 +114,8 @@ Describe 'Send-SPGraphMailRequest' {
         $result.Notes | Should -Contain "Microsoft Graph sendMail request failed for sender 'askoneup@askoneup.com'."
         $result.Notes | Should -Contain 'Failed to acquire a Microsoft Graph access token result.'
 
-        Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Returns failure when token acquisition fails without notes' {
@@ -130,7 +138,8 @@ Describe 'Send-SPGraphMailRequest' {
         $result.ErrorMessage | Should -Be 'Failed to acquire a Microsoft Graph access token.'
         $result.Notes | Should -Contain 'Failed to acquire a Microsoft Graph access token.'
 
-        Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Returns failure when token acquisition fails with notes' {
@@ -156,7 +165,8 @@ Describe 'Send-SPGraphMailRequest' {
         $result.ErrorMessage | Should -Be 'Failed to acquire a Microsoft Graph access token. Stored secret found. AAD rejected the client secret.'
         $result.Notes | Should -Contain 'Failed to acquire a Microsoft Graph access token. Stored secret found. AAD rejected the client secret.'
 
-        Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Returns failure when token result does not contain an access token' {
@@ -179,7 +189,8 @@ Describe 'Send-SPGraphMailRequest' {
         $result.ErrorMessage | Should -Be 'Token result did not contain an access token.'
         $result.Notes | Should -Contain 'Token result did not contain an access token.'
 
-        Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Returns failure with status code when Invoke-WebRequest throws with response status' {
@@ -203,6 +214,9 @@ Describe 'Send-SPGraphMailRequest' {
         $result.ErrorMessage | Should -Be 'Graph request failed.'
         $result.Notes | Should -Contain "Microsoft Graph sendMail request failed for sender 'askoneup@askoneup.com'."
         $result.Notes | Should -Contain 'Graph request failed.'
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
 
     It 'Returns failure and includes response body when available' {
@@ -242,6 +256,84 @@ Describe 'Send-SPGraphMailRequest' {
         $result.StatusCode | Should -Be 401
         $result.ErrorMessage | Should -Be 'Unauthorized. Response body: {"error":"access denied"}'
         $result.Notes | Should -Contain 'Unauthorized. Response body: {"error":"access denied"}'
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
+    }
+
+    It 'Retries a throttled Graph request and succeeds when the retry is accepted' {
+        $script:requestAttempt = 0
+
+        Mock Invoke-WebRequest {
+            $script:requestAttempt++
+
+            if ($script:requestAttempt -eq 1) {
+                $response = [pscustomobject]@{
+                    StatusCode = 429
+                    Headers    = @{
+                        'Retry-After' = '2'
+                    }
+                }
+
+                $exception = [System.Exception]::new(
+                    'Response status code does not indicate success: 429 (Too Many Requests).'
+                )
+
+                $exception | Add-Member -MemberType NoteProperty -Name Response -Value $response -Force
+
+                throw $exception
+            }
+
+            [pscustomobject]@{
+                StatusCode = 202
+            }
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload @{ message = @{ subject = 'Hello' } }
+
+        $result.Success | Should -BeTrue
+        $result.StatusCode | Should -Be 202
+        $result.ErrorMessage | Should -Be ''
+
+        Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 2 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 1 -Exactly -ParameterFilter {
+            $Seconds -eq 2
+        }
+    }
+
+    It 'Returns failure after the maximum number of throttled Graph attempts' {
+        Mock Invoke-WebRequest {
+            $response = [pscustomobject]@{
+                StatusCode = 429
+                Headers    = @{
+                    'Retry-After' = '1'
+                }
+            }
+
+            $exception = [System.Exception]::new(
+                'Response status code does not indicate success: 429 (Too Many Requests).'
+            )
+
+            $exception | Add-Member -MemberType NoteProperty -Name Response -Value $response -Force
+
+            throw $exception
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload @{ message = @{ subject = 'Hello' } }
+
+        $result.Success | Should -BeFalse
+        $result.StatusCode | Should -Be 429
+
+        Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 5 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 4 -Exactly -ParameterFilter {
+            $Seconds -eq 1
+        }
     }
 
     It 'Returns token roles note as empty when no roles are present' {

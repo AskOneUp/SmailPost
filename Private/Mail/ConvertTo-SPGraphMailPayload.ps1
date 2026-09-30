@@ -4,10 +4,11 @@ function ConvertTo-SPGraphMailPayload {
         Builds the Microsoft Graph sendMail payload for one recipient.
 
         .DESCRIPTION
-        New-SPMailPayload creates the PowerShell object that will later be converted to JSON
+        ConvertTo-SPGraphMailPayload creates the PowerShell object that will later be converted to JSON
         and sent to the Microsoft Graph sendMail endpoint.
 
-        The payload is built for exactly one recipient and optionally includes file attachments.
+        The payload is built for exactly one recipient and can optionally include a BCC recipient
+        and file attachments.
 
         .PARAMETER Recipient
         The email address of the recipient.
@@ -17,6 +18,9 @@ function ConvertTo-SPGraphMailPayload {
 
         .PARAMETER HtmlBody
         The HTML body of the email message.
+
+        .PARAMETER BccAddress
+        Optional BCC email address that receives a blind copy of the message.
 
         .PARAMETER Attachments
         Optional Microsoft Graph attachment objects.
@@ -38,6 +42,9 @@ function ConvertTo-SPGraphMailPayload {
 
         [Parameter(Mandatory = $true)]
         [string]$HtmlBody,
+
+        [Parameter()]
+        [string]$BccAddress,
 
         [Parameter()]
         [object[]]$Attachments = @(),
@@ -74,6 +81,18 @@ function ConvertTo-SPGraphMailPayload {
             )
         }
 
+        # Add the BCC recipient only when an address was supplied.
+        if (-not [string]::IsNullOrWhiteSpace($BccAddress)) {
+            $message.bccRecipients = @(
+                @{
+                    emailAddress = @{
+                        address = $BccAddress.Trim()
+                    }
+                }
+            )
+        }
+
+        # Add attachments only when attachments were supplied.
         if ($Attachments -and $Attachments.Count -gt 0) {
             $message.attachments = @($Attachments)
         }

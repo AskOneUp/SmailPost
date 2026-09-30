@@ -18,6 +18,9 @@ function Test-SPMailJobSetup {
     .PARAMETER SenderAddress
     The sender email address to use for the mail job.
 
+    .PARAMETER BccAddress
+    Optional BCC email address to validate for the mail job.
+
     .PARAMETER SubjectTemplate
     The subject template for the mail job.
 
@@ -52,6 +55,9 @@ function Test-SPMailJobSetup {
 
         [Parameter()]
         [string]$SenderAddress,
+
+        [Parameter()]
+        [string]$BccAddress,
 
         [Parameter()]
         [string]$SubjectTemplate,
@@ -116,6 +122,29 @@ function Test-SPMailJobSetup {
 
         if ($allowedSenders.Count -eq 0 -or -not $matchingSender) {
             $issues.Add((ConvertTo-SPValidationIssue -Severity 'Error' -Code 'JobSetup.Sender.NotAllowed' -Category 'Sender' -Message "Sender address '$SenderAddress' is not allowed." -Target 'SenderAddress' -Details @{ SenderAddress = $SenderAddress }))
+        }
+    }
+
+    # ========================
+    # Validate BCC address.
+    # ========================
+
+    if (-not [string]::IsNullOrWhiteSpace($BccAddress)) {
+        $bccValidationResult = Test-SPRecipientAddress -Recipient $BccAddress
+
+        if (-not $bccValidationResult.Valid) {
+            $issues.Add((
+                    ConvertTo-SPValidationIssue `
+                        -Severity 'Error' `
+                        -Code 'JobSetup.Bcc.Invalid' `
+                        -Category 'Recipient' `
+                        -Message "BCC address '$BccAddress' is invalid." `
+                        -Target 'BccAddress' `
+                        -Details @{
+                        BccAddress = $BccAddress
+                        Notes      = @($bccValidationResult.Notes)
+                    }
+                ))
         }
     }
 

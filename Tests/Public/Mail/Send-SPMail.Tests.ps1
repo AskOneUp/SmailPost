@@ -64,6 +64,7 @@ Describe 'Send-SPMail' {
                     $Recipient,
                     $Subject,
                     $HtmlBody,
+                    $BccAddress,
                     $Attachments,
                     $SaveToSentItems
                 )
@@ -71,6 +72,7 @@ Describe 'Send-SPMail' {
                 $null = $Recipient
                 $null = $Subject
                 $null = $HtmlBody
+                $null = $BccAddress
                 $null = $Attachments
                 $null = $SaveToSentItems
 
@@ -242,6 +244,7 @@ Describe 'Send-SPMail' {
                 $Recipient,
                 $Subject,
                 $HtmlBody,
+                $BccAddress,
                 $Attachments,
                 $SaveToSentItems
             )
@@ -381,6 +384,26 @@ Describe 'Send-SPMail' {
         $results[0].Success | Should -BeTrue
         $results[0].Status | Should -Be 'Sent'
         $results[0].ErrorMessage | Should -Be ''
+    }
+
+    It 'Passes the BCC address to the Graph mail payload' {
+        # Proves the optional BCC address is forwarded to every Graph mail payload.
+
+        $results = Send-SPMail `
+            -SenderAddress 'AskOneUp@outlook.com' `
+            -To @('user@example.com') `
+            -Subject 'BCC test' `
+            -HtmlBody '<p>Hello</p>' `
+            -BccAddress 'audit@example.com' `
+            -Confirm:$false
+
+        $results | Should -HaveCount 1
+        $results[0].Success | Should -BeTrue
+
+        Should -Invoke -CommandName ConvertTo-SPGraphMailPayload -Times 1 -Exactly -ParameterFilter {
+            $Recipient -eq 'user@example.com' -and
+            $BccAddress -eq 'audit@example.com'
+        }
     }
 
     It 'Sends an ordinary attachment through the existing attachment contract' {

@@ -12,6 +12,7 @@ Describe 'Test-SPMailJobSetup' {
         . (Join-Path $script:ModuleRoot 'Public\Identity\Get-SPAllowedSender.ps1')
 
         . (Join-Path $script:ModuleRoot 'Private\Validation\Test-SPAttachmentPath.ps1')
+        . (Join-Path $script:ModuleRoot 'Private\Validation\Test-SPRecipientAddress.ps1')
         . (Join-Path $script:ModuleRoot 'Private\Validation\Test-SPMailJobSetup.ps1')
     }
 
@@ -382,4 +383,48 @@ Describe 'Test-SPMailJobSetup' {
 
         Should -Invoke Test-SPAttachmentPath -Times 2 -Exactly
     }
+    It 'Returns Valid when BCC address is valid' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -BccAddress 'audit@example.com' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body'
+
+        $result.Status | Should -Be 'Valid'
+        $result.Issues.Count | Should -Be 0
+    }
+
+    It 'Returns Invalid when BCC address is invalid' {
+        $csvImportResult = [pscustomobject]@{
+            Headers = @('Email')
+            Rows    = @(
+                [pscustomobject]@{
+                    Email = 'donald@example.com'
+                }
+            )
+        }
+
+        $result = Test-SPMailJobSetup `
+            -CsvImportResult $csvImportResult `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -BccAddress 'not-an-email-address' `
+            -SubjectTemplate 'Hello' `
+            -BodyTemplate 'Body'
+
+        $result.Status | Should -Be 'Invalid'
+        $result.Issues.Code | Should -Contain 'JobSetup.Bcc.Invalid'
+    }
+
 }

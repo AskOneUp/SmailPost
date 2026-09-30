@@ -9,6 +9,10 @@ function Send-SPGraphMailRequest {
         converts the payload to JSON, submits the request to Microsoft Graph, and returns
         a structured result describing whether the request was accepted.
 
+        Microsoft Graph throttling responses with status code 429 are retried automatically.
+        The Retry-After response header is respected when available. A maximum of five
+        request attempts is made before the request is returned as failed.
+
         .PARAMETER SenderAddress
         The sender mailbox address used in the Graph /users/{sender}/sendMail endpoint.
 
@@ -73,7 +77,9 @@ function Send-SPGraphMailRequest {
             }
 
             if (-not $tokenResult.Success) {
-                $tokenNotes = (@($tokenResult.Notes) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join ' '
+                $tokenNotes = (@($tokenResult.Notes) | Where-Object {
+                        -not [string]::IsNullOrWhiteSpace($_)
+                    }) -join ' '
 
                 if ([string]::IsNullOrWhiteSpace($tokenNotes)) {
                     throw 'Failed to acquire a Microsoft Graph access token.'
@@ -94,6 +100,9 @@ function Send-SPGraphMailRequest {
             Add-TransportNote -Message ("Token app id: {0}" -f $tokenResult.AppId)
             Add-TransportNote -Message ("Token roles: {0}" -f (($tokenResult.Roles -join ', ')))
 
+            # ========================
+            # Prepare the Graph request.
+            # ========================
             $jsonBody = $Payload | ConvertTo-Json -Depth 10
 
             $headers = @{
@@ -101,17 +110,88 @@ function Send-SPGraphMailRequest {
                 'Content-Type' = 'application/json'
             }
 
-            $response = Invoke-WebRequest `
-                -Method Post `
-                -Uri $requestUri `
-                -Headers $headers `
-                -Body $jsonBody `
-                -ErrorAction Stop
+            # ========================
+            # Send the Graph request with throttling retry support.
+            # ========================
+            $maxAttempts = 5
+            $attempt = 0
+            $requestCompleted = $false
 
-            $result.Success = $true
-            $result.StatusCode = [int]$response.StatusCode
+            while (-not $requestCompleted -and $attempt -lt $maxAttempts) {
+                $attempt++
 
-            Add-TransportNote -Message ("Microsoft Graph accepted the sendMail request for sender '{0}'." -f $normalizedSenderAddress)
+                try {
+                    $response = Invoke-WebRequest `
+                        -Method Post `
+                        -Uri $requestUri `
+                        -Headers $headers `
+                        -Body $jsonBody `
+                        -ErrorAction Stop
+
+                    $result.Success = $true
+                    $result.StatusCode = [int]$response.StatusCode
+                    $result.ErrorMessage = ''
+                    $requestCompleted = $true
+
+                    Add-TransportNote -Message (
+                        "Microsoft Graph accepted the sendMail request for sender '{0}'." -f
+                        $normalizedSenderAddress
+                    )
+                }
+                catch {
+                    $requestError = $_
+                    $statusCode = 0
+
+                    if ($requestError.Exception.Response) {
+                        try {
+                            $statusCode = [int]$requestError.Exception.Response.StatusCode
+                        }
+                        catch {
+                            $statusCode = 0
+                        }
+                    }
+
+                    # ========================
+                    # Retry throttled requests when attempts remain.
+                    # ========================
+                    if ($statusCode -eq 429 -and $attempt -lt $maxAttempts) {
+                        $retryAfterSeconds = 1
+
+                        try {
+                            $retryAfterValue = $requestError.Exception.Response.Headers['Retry-After']
+
+                            if (-not [string]::IsNullOrWhiteSpace([string]$retryAfterValue)) {
+                                $parsedRetryAfter = 0
+
+                                if (
+                                    [int]::TryParse(
+                                        [string]$retryAfterValue,
+                                        [ref]$parsedRetryAfter
+                                    ) -and
+                                    $parsedRetryAfter -gt 0
+                                ) {
+                                    $retryAfterSeconds = $parsedRetryAfter
+                                }
+                            }
+                        }
+                        catch {
+                            $retryAfterSeconds = 1
+                        }
+
+                        Add-TransportNote -Message (
+                            "Microsoft Graph throttled sendMail attempt {0} of {1}. Retrying after {2} second(s)." -f
+                            $attempt,
+                            $maxAttempts,
+                            $retryAfterSeconds
+                        )
+
+                        Start-Sleep -Seconds $retryAfterSeconds
+                        continue
+                    }
+
+                    throw $requestError
+                }
+            }
         }
         catch {
             $statusCode = 0
@@ -127,7 +207,10 @@ function Send-SPGraphMailRequest {
                 }
 
                 try {
-                    $streamReader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
+                    $streamReader = [System.IO.StreamReader]::new(
+                        $_.Exception.Response.GetResponseStream()
+                    )
+
                     $responseBody = $streamReader.ReadToEnd()
                     $streamReader.Dispose()
                 }
@@ -143,7 +226,10 @@ function Send-SPGraphMailRequest {
             $result.StatusCode = $statusCode
             $result.ErrorMessage = $errorMessage
 
-            Add-TransportNote -Message ("Microsoft Graph sendMail request failed for sender '{0}'." -f $normalizedSenderAddress)
+            Add-TransportNote -Message (
+                "Microsoft Graph sendMail request failed for sender '{0}'." -f
+                $normalizedSenderAddress
+            )
 
             if (-not [string]::IsNullOrWhiteSpace($errorMessage)) {
                 Add-TransportNote -Message $errorMessage

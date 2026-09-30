@@ -1,4 +1,5 @@
 Describe 'Send-SPMailBatch' {
+
     BeforeAll {
         . "$PSScriptRoot\..\..\Shared\TestBootstrap.ps1"
 
@@ -11,6 +12,7 @@ Describe 'Send-SPMailBatch' {
                     $To,
                     $Subject,
                     $HtmlBody,
+                    $BccAddress,
                     $AttachmentPath,
                     $InlineImage,
                     $SaveToSentItems,
@@ -21,6 +23,7 @@ Describe 'Send-SPMailBatch' {
                 $null = $To
                 $null = $Subject
                 $null = $HtmlBody
+                $null = $BccAddress
                 $null = $AttachmentPath
                 $null = $InlineImage
                 $null = $SaveToSentItems
@@ -89,6 +92,7 @@ Describe 'Send-SPMailBatch' {
                 $To,
                 $Subject,
                 $HtmlBody,
+                $BccAddress,
                 $AttachmentPath,
                 $InlineImage,
                 $SaveToSentItems,
@@ -191,7 +195,17 @@ Describe 'Send-SPMailBatch' {
 
     It 'Returns Partial when some items succeed and some fail' {
         Mock Send-SPMail {
-            param ($To)
+            param (
+                $SenderAddress,
+                $To,
+                $Subject,
+                $HtmlBody,
+                $BccAddress,
+                $AttachmentPath,
+                $InlineImage,
+                $SaveToSentItems,
+                $Confirm
+            )
 
             if ($To[0] -eq 'user1@example.com') {
                 return @(
@@ -272,8 +286,33 @@ Describe 'Send-SPMailBatch' {
         $result.Status | Should -Be 'Sent'
         $result.Results[0].AttachmentCount | Should -Be 0
 
-        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+        Should -Invoke -CommandName Send-SPMail -Times 1 -Exactly -ParameterFilter {
             @($InlineImage).Count -eq 0
+        }
+    }
+
+    It 'Forwards BCC address to Send-SPMail' {
+        $renderItems = @(
+            [pscustomobject]@{
+                RowNumber   = 6
+                Recipient   = 'user@example.com'
+                Subject     = 'BCC'
+                Body        = '<p>BCC test</p>'
+                Attachments = @()
+                Status      = 'Valid'
+            }
+        )
+
+        $result = Send-SPMailBatch `
+            -RenderItems $renderItems `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -BccAddress 'audit@example.com'
+
+        $result.Status | Should -Be 'Sent'
+
+        Should -Invoke -CommandName Send-SPMail -Times 1 -Exactly -ParameterFilter {
+            $To[0] -eq 'user@example.com' -and
+            $BccAddress -eq 'audit@example.com'
         }
     }
 
@@ -285,7 +324,7 @@ Describe 'Send-SPMailBatch' {
 
         $renderItems = @(
             [pscustomobject]@{
-                RowNumber    = 6
+                RowNumber    = 7
                 Recipient    = 'user@example.com'
                 Subject      = 'Inline'
                 Body         = '<img src="cid:connected-logo">'
@@ -301,7 +340,7 @@ Describe 'Send-SPMailBatch' {
 
         $result.Status | Should -Be 'Sent'
 
-        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+        Should -Invoke -CommandName Send-SPMail -Times 1 -Exactly -ParameterFilter {
             $InlineImage.Count -eq 1 -and
             $InlineImage[0].Path -eq 'C:\Temp\connected-logo.png' -and
             $InlineImage[0].ContentId -eq 'connected-logo'
@@ -316,7 +355,7 @@ Describe 'Send-SPMailBatch' {
 
         $renderItems = @(
             [pscustomobject]@{
-                RowNumber    = 7
+                RowNumber    = 8
                 Recipient    = 'user@example.com'
                 Subject      = 'Mixed'
                 Body         = '<img src="cid:connected-logo">'
@@ -332,7 +371,7 @@ Describe 'Send-SPMailBatch' {
 
         $result.Status | Should -Be 'Sent'
 
-        Should -Invoke Send-SPMail -Times 1 -ParameterFilter {
+        Should -Invoke -CommandName Send-SPMail -Times 1 -Exactly -ParameterFilter {
             $AttachmentPath.Count -eq 1 -and
             $AttachmentPath[0] -eq 'C:\Temp\manual.pdf' -and
             $InlineImage.Count -eq 1 -and
@@ -343,7 +382,7 @@ Describe 'Send-SPMailBatch' {
     It 'Counts ordinary attachments and inline images in AttachmentCount' {
         $renderItems = @(
             [pscustomobject]@{
-                RowNumber    = 8
+                RowNumber    = 9
                 Recipient    = 'user@example.com'
                 Subject      = 'Count'
                 Body         = '<p>Body</p>'
@@ -371,7 +410,7 @@ Describe 'Send-SPMailBatch' {
     It 'Counts inline images for an invalid render item without sending it' {
         $renderItems = @(
             [pscustomobject]@{
-                RowNumber    = 9
+                RowNumber    = 10
                 Recipient    = 'broken@example.com'
                 Subject      = 'Broken'
                 Body         = '<p>Broken</p>'
@@ -393,6 +432,6 @@ Describe 'Send-SPMailBatch' {
         $result.Status | Should -Be 'Failed'
         $result.Results[0].AttachmentCount | Should -Be 2
 
-        Should -Invoke Send-SPMail -Times 0
+        Should -Invoke -CommandName Send-SPMail -Times 0 -Exactly
     }
 }

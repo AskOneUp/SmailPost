@@ -28,6 +28,9 @@ function Send-SPMail {
         .PARAMETER HtmlBody
         The HTML body of the email message.
 
+        .PARAMETER BccAddress
+        Optional BCC email address that receives a blind copy of each message.
+
         .PARAMETER AttachmentPath
         Optional file paths to include as ordinary attachments.
 
@@ -67,6 +70,9 @@ function Send-SPMail {
 
         [Parameter(Mandatory = $true)]
         [string]$HtmlBody,
+
+        [Parameter()]
+        [string]$BccAddress,
 
         [Parameter()]
         [string[]]$AttachmentPath = @(),
@@ -322,6 +328,7 @@ function Send-SPMail {
                 -Recipient $normalizedRecipient `
                 -Subject $normalizedSubject `
                 -HtmlBody $normalizedHtmlBody `
+                -BccAddress $BccAddress `
                 -Attachments $graphAttachments `
                 -SaveToSentItems $SaveToSentItems
 

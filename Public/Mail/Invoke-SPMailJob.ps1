@@ -35,6 +35,10 @@ function Invoke-SPMailJob {
         .PARAMETER InlineImages
         Optional inline image definitions to include with each message.
 
+
+        .PARAMETER BccAddress
+        Optional BCC email address that receives a blind copy of each message in the mail job.
+
         Each inline image definition must contain:
         - Path
         - ContentId
@@ -73,6 +77,9 @@ function Invoke-SPMailJob {
         [object[]]$InlineImages = @(),
 
         [Parameter()]
+        [string]$BccAddress,
+
+        [Parameter()]
         [bool]$SaveToSentItems = $true
     )
 
@@ -90,6 +97,7 @@ function Invoke-SPMailJob {
         -CsvImportResult $csvImportResult `
         -RecipientColumn $RecipientColumn `
         -SenderAddress $SenderAddress `
+        -BccAddress $BccAddress `
         -SubjectTemplate $SubjectTemplate `
         -BodyTemplate $HtmlBodyTemplate `
         -AttachmentPaths $AttachmentPaths `
@@ -147,6 +155,7 @@ function Invoke-SPMailJob {
             $batchSendResult = Send-SPMailBatch `
                 -RenderItems @($validRenderItems) `
                 -SenderAddress $SenderAddress `
+                -BccAddress $BccAddress `
                 -SaveToSentItems $SaveToSentItems
         }
     }

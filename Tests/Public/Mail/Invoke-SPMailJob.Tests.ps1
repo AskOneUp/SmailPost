@@ -20,6 +20,7 @@ Describe 'Invoke-SPMailJob' {
                     $CsvImportResult,
                     $RecipientColumn,
                     $SenderAddress,
+                    $BccAddress,
                     $SubjectTemplate,
                     $BodyTemplate,
                     $AttachmentPaths,
@@ -29,6 +30,7 @@ Describe 'Invoke-SPMailJob' {
                 $null = $CsvImportResult
                 $null = $RecipientColumn
                 $null = $SenderAddress
+                $null = $BccAddress
                 $null = $SubjectTemplate
                 $null = $BodyTemplate
                 $null = $AttachmentPaths
@@ -81,11 +83,13 @@ Describe 'Invoke-SPMailJob' {
                 param (
                     $RenderItems,
                     $SenderAddress,
+                    $BccAddress,
                     $SaveToSentItems
                 )
 
                 $null = $RenderItems
                 $null = $SenderAddress
+                $null = $BccAddress
                 $null = $SaveToSentItems
             }
         }
@@ -374,6 +378,32 @@ Describe 'Invoke-SPMailJob' {
 
         Should -Invoke ConvertTo-SPMailRender -Times 2 -Exactly -ParameterFilter {
             @($InlineImages).Count -eq 0
+        }
+    }
+    It 'Passes BCC address to the mail batch' {
+        $null = Invoke-SPMailJob `
+            -CsvPath 'C:\Temp\input.csv' `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -HtmlBodyTemplate '<p>Hello {FirstName}</p>' `
+            -BccAddress 'audit@example.com'
+
+        Should -Invoke -CommandName Send-SPMailBatch -Times 1 -Exactly -ParameterFilter {
+            $BccAddress -eq 'audit@example.com'
+        }
+    }
+    It 'Passes BCC address to job setup validation' {
+        $null = Invoke-SPMailJob `
+            -CsvPath 'C:\Temp\input.csv' `
+            -RecipientColumn 'Email' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -SubjectTemplate 'Hello {FirstName}' `
+            -HtmlBodyTemplate '<p>Hello {FirstName}</p>' `
+            -BccAddress 'audit@example.com'
+
+        Should -Invoke -CommandName Test-SPMailJobSetup -Times 1 -Exactly -ParameterFilter {
+            $BccAddress -eq 'audit@example.com'
         }
     }
 }

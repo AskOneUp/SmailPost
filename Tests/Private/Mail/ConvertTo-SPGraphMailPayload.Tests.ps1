@@ -32,6 +32,7 @@ Describe 'ConvertTo-SPGraphMailPayload' {
             $result.message.toRecipients | Should -HaveCount 1
             $result.message.toRecipients[0].emailAddress.address | Should -Be 'user@example.com'
 
+            $result.message.ContainsKey('bccRecipients') | Should -BeFalse
             $result.message.ContainsKey('attachments') | Should -BeFalse
         }
 
@@ -56,6 +57,43 @@ Describe 'ConvertTo-SPGraphMailPayload' {
             $result.message.ContainsKey('attachments') | Should -BeTrue
             $result.message.attachments | Should -HaveCount 1
             $result.message.attachments[0].name | Should -Be 'report.txt'
+        }
+
+        It 'Builds the expected Graph payload with a BCC recipient' {
+            # Proves a supplied BCC address is included in the Graph message.
+
+            $result = ConvertTo-SPGraphMailPayload `
+                -Recipient 'user@example.com' `
+                -Subject 'BCC test' `
+                -HtmlBody '<p>Body</p>' `
+                -BccAddress ' audit@example.com '
+
+            $result.message.ContainsKey('bccRecipients') | Should -BeTrue
+            $result.message.bccRecipients | Should -HaveCount 1
+            $result.message.bccRecipients[0].emailAddress.address | Should -Be 'audit@example.com'
+        }
+
+        It 'Does not add BCC recipients when no BCC address is supplied' {
+            # Proves BCC remains optional and preserves existing behaviour.
+
+            $result = ConvertTo-SPGraphMailPayload `
+                -Recipient 'user@example.com' `
+                -Subject 'No BCC' `
+                -HtmlBody '<p>Body</p>'
+
+            $result.message.ContainsKey('bccRecipients') | Should -BeFalse
+        }
+
+        It 'Does not add BCC recipients when the BCC address is whitespace' {
+            # Proves a whitespace-only optional BCC address is ignored.
+
+            $result = ConvertTo-SPGraphMailPayload `
+                -Recipient 'user@example.com' `
+                -Subject 'Whitespace BCC' `
+                -HtmlBody '<p>Body</p>' `
+                -BccAddress '   '
+
+            $result.message.ContainsKey('bccRecipients') | Should -BeFalse
         }
 
         It 'Uses the provided SaveToSentItems value when false' {

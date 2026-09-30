@@ -28,6 +28,9 @@ Rendered items can contain:
 .PARAMETER SenderAddress
 The sender mailbox address used for the batch.
 
+.PARAMETER BccAddress
+Optional BCC email address that receives a blind copy of each message in the batch.
+
 .PARAMETER SaveToSentItems
 Indicates whether sent messages should be stored in Sent Items.
 
@@ -55,6 +58,9 @@ Used after ConvertTo-SPMailRender and before reporting or export.
 
         [Parameter(Mandatory)]
         [string]$SenderAddress,
+
+        [Parameter()]
+        [string]$BccAddress,
 
         [Parameter()]
         [bool]$SaveToSentItems = $true
@@ -123,6 +129,7 @@ Used after ConvertTo-SPMailRender and before reporting or export.
                 -To @($renderItem.Recipient) `
                 -Subject $renderItem.Subject `
                 -HtmlBody $renderItem.Body `
+                -BccAddress $BccAddress `
                 -AttachmentPath $attachments `
                 -InlineImage $inlineImages `
                 -SaveToSentItems $SaveToSentItems `
