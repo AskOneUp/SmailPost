@@ -260,26 +260,28 @@ Describe 'Send-SPGraphMailRequest' {
         Should -Invoke -CommandName Invoke-WebRequest -Times 1 -Exactly
         Should -Invoke -CommandName Start-Sleep -Times 0 -Exactly
     }
-
-    It 'Retries a throttled Graph request and succeeds when the retry is accepted' {
+    It 'Retries a throttled Graph request using Retry-After and succeeds' {
         $script:requestAttempt = 0
 
         Mock Invoke-WebRequest {
             $script:requestAttempt++
 
             if ($script:requestAttempt -eq 1) {
-                $response = [pscustomobject]@{
-                    StatusCode = 429
-                    Headers    = @{
-                        'Retry-After' = '2'
-                    }
-                }
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::TooManyRequests
+                )
+
+                $response.Headers.TryAddWithoutValidation('Retry-After', '2') | Out-Null
 
                 $exception = [System.Exception]::new(
                     'Response status code does not indicate success: 429 (Too Many Requests).'
                 )
 
-                $exception | Add-Member -MemberType NoteProperty -Name Response -Value $response -Force
+                $exception | Add-Member `
+                    -MemberType NoteProperty `
+                    -Name Response `
+                    -Value $response `
+                    -Force
 
                 throw $exception
             }
@@ -304,20 +306,167 @@ Describe 'Send-SPGraphMailRequest' {
         }
     }
 
-    It 'Returns failure after the maximum number of throttled Graph attempts' {
+    It 'Uses each new Retry-After value returned by Microsoft Graph' {
+        $script:requestAttempt = 0
+
         Mock Invoke-WebRequest {
-            $response = [pscustomobject]@{
-                StatusCode = 429
-                Headers    = @{
-                    'Retry-After' = '1'
-                }
+            $script:requestAttempt++
+
+            if ($script:requestAttempt -le 2) {
+                $retryAfter = if ($script:requestAttempt -eq 1) { '3' } else { '7' }
+
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::TooManyRequests
+                )
+
+                $response.Headers.TryAddWithoutValidation(
+                    'Retry-After',
+                    $retryAfter
+                ) | Out-Null
+
+                $exception = [System.Exception]::new(
+                    'Response status code does not indicate success: 429 (Too Many Requests).'
+                )
+
+                $exception | Add-Member `
+                    -MemberType NoteProperty `
+                    -Name Response `
+                    -Value $response `
+                    -Force
+
+                throw $exception
             }
+
+            [pscustomobject]@{
+                StatusCode = 202
+            }
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload @{ message = @{ subject = 'Hello' } }
+
+        $result.Success | Should -BeTrue
+        $result.StatusCode | Should -Be 202
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 3 -Exactly
+
+        Should -Invoke -CommandName Start-Sleep -Times 1 -Exactly -ParameterFilter {
+            $Seconds -eq 3
+        }
+
+        Should -Invoke -CommandName Start-Sleep -Times 1 -Exactly -ParameterFilter {
+            $Seconds -eq 7
+        }
+    }
+
+    It 'Uses exponential backoff when Retry-After is missing' {
+        $script:requestAttempt = 0
+
+        Mock Invoke-WebRequest {
+            $script:requestAttempt++
+
+            if ($script:requestAttempt -le 6) {
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::TooManyRequests
+                )
+
+                $exception = [System.Exception]::new(
+                    'Response status code does not indicate success: 429 (Too Many Requests).'
+                )
+
+                $exception | Add-Member `
+                    -MemberType NoteProperty `
+                    -Name Response `
+                    -Value $response `
+                    -Force
+
+                throw $exception
+            }
+
+            [pscustomobject]@{
+                StatusCode = 202
+            }
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload @{ message = @{ subject = 'Hello' } }
+
+        $result.Success | Should -BeTrue
+        $result.StatusCode | Should -Be 202
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 7 -Exactly
+
+        foreach ($expectedDelay in @(2, 4, 8, 16, 32, 64)) {
+            Should -Invoke -CommandName Start-Sleep -Times 1 -Exactly -ParameterFilter {
+                $Seconds -eq $expectedDelay
+            }
+        }
+    }
+
+    It 'Uses exponential backoff when Retry-After is invalid' {
+        $script:requestAttempt = 0
+
+        Mock Invoke-WebRequest {
+            $script:requestAttempt++
+
+            if ($script:requestAttempt -eq 1) {
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::TooManyRequests
+                )
+
+                $response.Headers.TryAddWithoutValidation(
+                    'Retry-After',
+                    'invalid'
+                ) | Out-Null
+
+                $exception = [System.Exception]::new(
+                    'Response status code does not indicate success: 429 (Too Many Requests).'
+                )
+
+                $exception | Add-Member `
+                    -MemberType NoteProperty `
+                    -Name Response `
+                    -Value $response `
+                    -Force
+
+                throw $exception
+            }
+
+            [pscustomobject]@{
+                StatusCode = 202
+            }
+        }
+
+        $result = Send-SPGraphMailRequest `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Payload @{ message = @{ subject = 'Hello' } }
+
+        $result.Success | Should -BeTrue
+        $result.StatusCode | Should -Be 202
+
+        Should -Invoke -CommandName Invoke-WebRequest -Times 2 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 1 -Exactly -ParameterFilter {
+            $Seconds -eq 2
+        }
+    }
+
+    It 'Returns failure after exponential backoff is exhausted' {
+        Mock Invoke-WebRequest {
+            $response = [System.Net.Http.HttpResponseMessage]::new(
+                [System.Net.HttpStatusCode]::TooManyRequests
+            )
 
             $exception = [System.Exception]::new(
                 'Response status code does not indicate success: 429 (Too Many Requests).'
             )
 
-            $exception | Add-Member -MemberType NoteProperty -Name Response -Value $response -Force
+            $exception | Add-Member `
+                -MemberType NoteProperty `
+                -Name Response `
+                -Value $response `
+                -Force
 
             throw $exception
         }
@@ -330,21 +479,41 @@ Describe 'Send-SPGraphMailRequest' {
         $result.StatusCode | Should -Be 429
 
         Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
-        Should -Invoke -CommandName Invoke-WebRequest -Times 5 -Exactly
-        Should -Invoke -CommandName Start-Sleep -Times 4 -Exactly -ParameterFilter {
-            $Seconds -eq 1
-        }
+        Should -Invoke -CommandName Invoke-WebRequest -Times 7 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 6 -Exactly
     }
 
-    It 'Returns token roles note as empty when no roles are present' {
-        Mock Get-SPGraphAccessToken {
+    It 'Continues retrying when Microsoft Graph keeps supplying Retry-After' {
+        $script:requestAttempt = 0
+
+        Mock Invoke-WebRequest {
+            $script:requestAttempt++
+
+            if ($script:requestAttempt -le 7) {
+                $response = [System.Net.Http.HttpResponseMessage]::new(
+                    [System.Net.HttpStatusCode]::TooManyRequests
+                )
+
+                $response.Headers.TryAddWithoutValidation(
+                    'Retry-After',
+                    '1'
+                ) | Out-Null
+
+                $exception = [System.Exception]::new(
+                    'Response status code does not indicate success: 429 (Too Many Requests).'
+                )
+
+                $exception | Add-Member `
+                    -MemberType NoteProperty `
+                    -Name Response `
+                    -Value $response `
+                    -Force
+
+                throw $exception
+            }
+
             [pscustomobject]@{
-                Success     = $true
-                AccessToken = 'token-123'
-                Audience    = 'https://graph.microsoft.com'
-                AppId       = 'app-123'
-                Roles       = @()
-                Notes       = @()
+                StatusCode = 202
             }
         }
 
@@ -353,6 +522,12 @@ Describe 'Send-SPGraphMailRequest' {
             -Payload @{ message = @{ subject = 'Hello' } }
 
         $result.Success | Should -BeTrue
-        $result.Notes | Should -Contain 'Token roles: '
+        $result.StatusCode | Should -Be 202
+
+        Should -Invoke -CommandName Get-SPGraphAccessToken -Times 1 -Exactly
+        Should -Invoke -CommandName Invoke-WebRequest -Times 8 -Exactly
+        Should -Invoke -CommandName Start-Sleep -Times 7 -Exactly -ParameterFilter {
+            $Seconds -eq 1
+        }
     }
 }

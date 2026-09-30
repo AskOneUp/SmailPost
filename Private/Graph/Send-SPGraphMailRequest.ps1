@@ -10,8 +10,11 @@ function Send-SPGraphMailRequest {
         a structured result describing whether the request was accepted.
 
         Microsoft Graph throttling responses with status code 429 are retried automatically.
-        The Retry-After response header is respected when available. A maximum of five
-        request attempts is made before the request is returned as failed.
+        When Microsoft Graph supplies a valid Retry-After value, that delay is respected
+        and the request is retried. When no usable Retry-After value is available, the
+        function uses exponential backoff delays of 2, 4, 8, 16, 32, and 64 seconds.
+        After the fallback sequence is exhausted, one final request is made before the
+        request is returned as failed.
 
         .PARAMETER SenderAddress
         The sender mailbox address used in the Graph /users/{sender}/sendMail endpoint.
@@ -113,11 +116,12 @@ function Send-SPGraphMailRequest {
             # ========================
             # Send the Graph request with throttling retry support.
             # ========================
-            $maxAttempts = 5
+            $fallbackDelays = @(2, 4, 8, 16, 32, 64)
+            $fallbackIndex = 0
             $attempt = 0
             $requestCompleted = $false
 
-            while (-not $requestCompleted -and $attempt -lt $maxAttempts) {
+            while (-not $requestCompleted) {
                 $attempt++
 
                 try {
@@ -152,36 +156,54 @@ function Send-SPGraphMailRequest {
                     }
 
                     # ========================
-                    # Retry throttled requests when attempts remain.
+                    # Only status code 429 is retryable.
                     # ========================
-                    if ($statusCode -eq 429 -and $attempt -lt $maxAttempts) {
-                        $retryAfterSeconds = 1
+                    if ($statusCode -ne 429) {
+                        throw $requestError
+                    }
 
-                        try {
-                            $retryAfterValue = $requestError.Exception.Response.Headers['Retry-After']
+                    $retryAfterSeconds = 0
+                    $hasValidRetryAfter = $false
+                    $retryAfterValues = $null
 
-                            if (-not [string]::IsNullOrWhiteSpace([string]$retryAfterValue)) {
-                                $parsedRetryAfter = 0
+                    # ========================
+                    # Read Retry-After from HttpResponseHeaders.
+                    # ========================
+                    try {
+                        $hasRetryAfterHeader =
+                        $requestError.Exception.Response.Headers.TryGetValues(
+                            'Retry-After',
+                            [ref]$retryAfterValues
+                        )
 
-                                if (
-                                    [int]::TryParse(
-                                        [string]$retryAfterValue,
-                                        [ref]$parsedRetryAfter
-                                    ) -and
-                                    $parsedRetryAfter -gt 0
-                                ) {
-                                    $retryAfterSeconds = $parsedRetryAfter
-                                }
+                        if ($hasRetryAfterHeader) {
+                            $retryAfterValue = @($retryAfterValues)[0]
+                            $parsedRetryAfter = 0
+
+                            if (
+                                [int]::TryParse(
+                                    [string]$retryAfterValue,
+                                    [ref]$parsedRetryAfter
+                                ) -and
+                                $parsedRetryAfter -gt 0
+                            ) {
+                                $retryAfterSeconds = $parsedRetryAfter
+                                $hasValidRetryAfter = $true
                             }
                         }
-                        catch {
-                            $retryAfterSeconds = 1
-                        }
+                    }
+                    catch {
+                        $hasValidRetryAfter = $false
+                    }
 
+                    # ========================
+                    # Graph supplied a usable Retry-After.
+                    # Respect it without consuming the fallback sequence.
+                    # ========================
+                    if ($hasValidRetryAfter) {
                         Add-TransportNote -Message (
-                            "Microsoft Graph throttled sendMail attempt {0} of {1}. Retrying after {2} second(s)." -f
+                            "Microsoft Graph throttled sendMail attempt {0}. Retrying after {1} second(s) as requested by Retry-After." -f
                             $attempt,
-                            $maxAttempts,
                             $retryAfterSeconds
                         )
 
@@ -189,7 +211,29 @@ function Send-SPGraphMailRequest {
                         continue
                     }
 
-                    throw $requestError
+                    # ========================
+                    # No usable Retry-After.
+                    # Use the finite exponential fallback sequence.
+                    # ========================
+                    if ($fallbackIndex -ge $fallbackDelays.Count) {
+                        Add-TransportNote -Message (
+                            "Microsoft Graph throttled sendMail attempt {0}. The fallback retry sequence is exhausted." -f
+                            $attempt
+                        )
+
+                        throw $requestError
+                    }
+
+                    $retryAfterSeconds = $fallbackDelays[$fallbackIndex]
+                    $fallbackIndex++
+
+                    Add-TransportNote -Message (
+                        "Microsoft Graph throttled sendMail attempt {0}. No usable Retry-After value was supplied. Retrying after {1} second(s)." -f
+                        $attempt,
+                        $retryAfterSeconds
+                    )
+
+                    Start-Sleep -Seconds $retryAfterSeconds
                 }
             }
         }
