@@ -9,6 +9,11 @@ function Export-SPMailJobReport {
 
         Version 1 supports JSON and CSV export.
 
+        JSON preserves the canonical report structure.
+
+        CSV exports one row per batch send result. Diagnostic Notes are preserved
+        in the CSV representation by joining multiple notes with " | ".
+
         .PARAMETER Report
         The canonical SmailPost job report created by ConvertTo-SPMailJobReport or
         returned by Invoke-SPMailJob.
@@ -99,36 +104,44 @@ function Export-SPMailJobReport {
 
             if ($batchResults.Count -eq 0) {
                 $rows.Add([pscustomobject][ordered]@{
-                    BatchId         = $batchId
-                    CreatedOn       = $createdOn
-                    OverallStatus   = $overallStatus
-                    RowNumber       = $null
-                    Recipient       = ''
-                    SenderAddress   = ''
-                    Subject         = ''
-                    Success         = $null
-                    Status          = ''
-                    ErrorMessage    = ''
-                    AttemptedOn     = $null
-                    AttachmentCount = $null
-                })
-            }
-            else {
-                foreach ($batchResult in $batchResults) {
-                    $rows.Add([pscustomobject][ordered]@{
                         BatchId         = $batchId
                         CreatedOn       = $createdOn
                         OverallStatus   = $overallStatus
-                        RowNumber       = $batchResult.RowNumber
-                        Recipient       = $batchResult.Recipient
-                        SenderAddress   = $batchResult.SenderAddress
-                        Subject         = $batchResult.Subject
-                        Success         = $batchResult.Success
-                        Status          = $batchResult.Status
-                        ErrorMessage    = $batchResult.ErrorMessage
-                        AttemptedOn     = $batchResult.AttemptedOn
-                        AttachmentCount = $batchResult.AttachmentCount
+                        RowNumber       = $null
+                        Recipient       = ''
+                        SenderAddress   = ''
+                        Subject         = ''
+                        Success         = $null
+                        Status          = ''
+                        ErrorMessage    = ''
+                        AttemptedOn     = $null
+                        AttachmentCount = $null
+                        Notes           = ''
                     })
+            }
+            else {
+                foreach ($batchResult in $batchResults) {
+                    $notes = ''
+
+                    if ($null -ne $batchResult.PSObject.Properties['Notes']) {
+                        $notes = @($batchResult.Notes) -join ' | '
+                    }
+
+                    $rows.Add([pscustomobject][ordered]@{
+                            BatchId         = $batchId
+                            CreatedOn       = $createdOn
+                            OverallStatus   = $overallStatus
+                            RowNumber       = $batchResult.RowNumber
+                            Recipient       = $batchResult.Recipient
+                            SenderAddress   = $batchResult.SenderAddress
+                            Subject         = $batchResult.Subject
+                            Success         = $batchResult.Success
+                            Status          = $batchResult.Status
+                            ErrorMessage    = $batchResult.ErrorMessage
+                            AttemptedOn     = $batchResult.AttemptedOn
+                            AttachmentCount = $batchResult.AttachmentCount
+                            Notes           = $notes
+                        })
                 }
             }
 

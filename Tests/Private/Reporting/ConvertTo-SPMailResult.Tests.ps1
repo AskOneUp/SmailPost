@@ -9,6 +9,10 @@ Describe 'ConvertTo-SPMailResult' {
 
     It 'Returns a standardized mail result object when input is valid' {
         $attemptedOn = [datetime]'2026-03-25 21:30:00'
+        $notes = @(
+            'Microsoft Graph throttled sendMail attempt 1.'
+            'Microsoft Graph accepted the sendMail request.'
+        )
 
         $result = ConvertTo-SPMailResult `
             -Recipient ' user@example.com ' `
@@ -21,7 +25,8 @@ Describe 'ConvertTo-SPMailResult' {
             -SaveToSentItems $true `
             -AttachmentCount 2 `
             -AttachmentTotalBytes 12345 `
-            -BatchId 'batch-001'
+            -BatchId 'batch-001' `
+            -Notes $notes
 
         $result.Recipient | Should -Be 'user@example.com'
         $result.RecipientIndex | Should -Be 1
@@ -35,6 +40,11 @@ Describe 'ConvertTo-SPMailResult' {
         $result.AttachmentCount | Should -Be 2
         $result.AttachmentTotalBytes | Should -Be 12345
         $result.BatchId | Should -Be 'batch-001'
+
+        $null -eq $result.Notes | Should -BeFalse
+        $result.Notes.Count | Should -Be 2
+        $result.Notes[0] | Should -Be $notes[0]
+        $result.Notes[1] | Should -Be $notes[1]
     }
 
     It 'Uses default values for optional parameters when they are not supplied' {
@@ -54,6 +64,8 @@ Describe 'ConvertTo-SPMailResult' {
         $result.ErrorMessage | Should -Be ''
         $result.AttachmentCount | Should -Be 0
         $result.AttachmentTotalBytes | Should -Be 0
+        $null -eq $result.Notes | Should -BeFalse
+        $result.Notes.Count | Should -Be 0
     }
 
     It 'Throws when Recipient is null, empty, or whitespace' {

@@ -48,7 +48,8 @@ Describe 'Send-SPMailBatch' {
                 $ErrorMessage,
                 $AttemptedOn,
                 $AttachmentCount,
-                $BatchId
+                $BatchId,
+                $Notes
             )
 
             [pscustomobject]@{
@@ -62,6 +63,7 @@ Describe 'Send-SPMailBatch' {
                 AttemptedOn     = $AttemptedOn
                 AttachmentCount = $AttachmentCount
                 BatchId         = $BatchId
+                Notes           = @($Notes)
             }
         }
 
@@ -106,6 +108,10 @@ Describe 'Send-SPMailBatch' {
                     Status       = 'Sent'
                     ErrorMessage = ''
                     AttemptedOn  = Get-Date
+                    Notes        = @(
+                        'Microsoft Graph throttled sendMail attempt 1.'
+                        'Microsoft Graph accepted the sendMail request.'
+                    )
                 }
             )
         }
@@ -141,6 +147,16 @@ Describe 'Send-SPMailBatch' {
         $result.SentCount | Should -Be 2
         $result.FailedCount | Should -Be 0
         $result.Results.Count | Should -Be 2
+
+        $null -eq $result.Results[0].Notes | Should -BeFalse
+        $result.Results[0].Notes.Count | Should -Be 2
+        $result.Results[0].Notes[0] | Should -Be 'Microsoft Graph throttled sendMail attempt 1.'
+        $result.Results[0].Notes[1] | Should -Be 'Microsoft Graph accepted the sendMail request.'
+
+        $null -eq $result.Results[1].Notes | Should -BeFalse
+        $result.Results[1].Notes.Count | Should -Be 2
+        $result.Results[1].Notes[0] | Should -Be 'Microsoft Graph throttled sendMail attempt 1.'
+        $result.Results[1].Notes[1] | Should -Be 'Microsoft Graph accepted the sendMail request.'
     }
 
     It 'Returns Failed for render items that are not valid' {

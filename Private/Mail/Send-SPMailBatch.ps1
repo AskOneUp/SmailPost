@@ -12,6 +12,7 @@ This function:
 - validates the rendered item collection
 - sends one rendered item at a time
 - forwards ordinary attachments and inline images
+- preserves diagnostic notes returned by the send operation
 - collects standardized per-row send results
 - determines the overall batch status
 
@@ -44,6 +45,8 @@ Returns an object containing:
 - SentCount
 - FailedCount
 - Results
+
+Each result preserves diagnostic Notes returned by Send-SPMail.
 
 .NOTES
 Private SmailPost function.
@@ -170,7 +173,8 @@ Used after ConvertTo-SPMailRender and before reporting or export.
                     -ErrorMessage $sendResult.ErrorMessage `
                     -AttemptedOn $sendResult.AttemptedOn `
                     -AttachmentCount $attachmentCount `
-                    -BatchId $batchId
+                    -BatchId $batchId `
+                    -Notes @($sendResult.Notes)
             ))
     }
 

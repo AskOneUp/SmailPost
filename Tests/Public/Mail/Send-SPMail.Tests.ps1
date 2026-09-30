@@ -107,7 +107,8 @@ Describe 'Send-SPMail' {
                     $SaveToSentItems,
                     $AttachmentCount,
                     $AttachmentTotalBytes,
-                    $BatchId
+                    $BatchId,
+                    $Notes
                 )
 
                 $null = $Recipient
@@ -122,6 +123,7 @@ Describe 'Send-SPMail' {
                 $null = $AttachmentCount
                 $null = $AttachmentTotalBytes
                 $null = $BatchId
+                $null = $Notes
 
                 [pscustomobject]@{}
             }
@@ -300,7 +302,8 @@ Describe 'Send-SPMail' {
                 $SaveToSentItems,
                 $AttachmentCount,
                 $AttachmentTotalBytes,
-                $BatchId
+                $BatchId,
+                $Notes
             )
 
             [pscustomobject]@{
@@ -316,6 +319,7 @@ Describe 'Send-SPMail' {
                 AttachmentCount      = $AttachmentCount
                 AttachmentTotalBytes = $AttachmentTotalBytes
                 BatchId              = $BatchId
+                Notes                = @($Notes)
             }
         }
     }
@@ -384,6 +388,10 @@ Describe 'Send-SPMail' {
         $results[0].Success | Should -BeTrue
         $results[0].Status | Should -Be 'Sent'
         $results[0].ErrorMessage | Should -Be ''
+
+        $null -eq $results[0].Notes | Should -BeFalse
+        $results[0].Notes.Count | Should -Be 1
+        $results[0].Notes[0] | Should -Be 'Accepted.'
     }
 
     It 'Passes the BCC address to the Graph mail payload' {

@@ -40,6 +40,15 @@ Describe 'ConvertTo-SPMailJobReport' {
             Status      = 'Sent'
             SentCount   = 2
             FailedCount = 0
+            Results     = @(
+                [pscustomobject]@{
+                    RowNumber = 1
+                    Notes     = @(
+                        'Microsoft Graph throttled sendMail attempt 1.'
+                        'Microsoft Graph accepted the sendMail request.'
+                    )
+                }
+            )
         }
 
         $result = ConvertTo-SPMailJobReport `
@@ -60,6 +69,12 @@ Describe 'ConvertTo-SPMailJobReport' {
         $result.SentCount | Should -Be 2
         $result.FailedCount | Should -Be 0
         $result.BatchId | Should -Be 'batch-001'
+        $null -eq $result.BatchSendResult | Should -BeFalse
+        $result.BatchSendResult.Results.Count | Should -Be 1
+        $null -eq $result.BatchSendResult.Results[0].Notes | Should -BeFalse
+        $result.BatchSendResult.Results[0].Notes.Count | Should -Be 2
+        $result.BatchSendResult.Results[0].Notes[0] | Should -Be 'Microsoft Graph throttled sendMail attempt 1.'
+        $result.BatchSendResult.Results[0].Notes[1] | Should -Be 'Microsoft Graph accepted the sendMail request.'
     }
 
     It 'Returns Invalid overall status when job setup is invalid' {

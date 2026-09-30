@@ -16,6 +16,9 @@ function Send-SPMail {
         Each recipient produces one result object so bulk sends can be reviewed, exported,
         or shown in a user interface.
 
+        Transport diagnostic notes returned by Microsoft Graph are preserved in the
+        result object.
+
         .PARAMETER SenderAddress
         The allowed sender mailbox address that will be used with Microsoft Graph.
 
@@ -51,6 +54,9 @@ function Send-SPMail {
 
         .OUTPUTS
         PSCustomObject
+
+        Returns one result object per recipient. Transport diagnostic information is
+        available through the Notes property.
     #>
     [CmdletBinding(
         SupportsShouldProcess = $true,
@@ -372,7 +378,8 @@ function Send-SPMail {
                     -SaveToSentItems $SaveToSentItems `
                     -AttachmentCount $attachmentCount `
                     -AttachmentTotalBytes $attachmentTotalBytes `
-                    -BatchId $batchId
+                    -BatchId $batchId `
+                    -Notes @($transportResult.Notes)
             }
             else {
                 $results += ConvertTo-SPMailResult `
@@ -387,7 +394,8 @@ function Send-SPMail {
                     -SaveToSentItems $SaveToSentItems `
                     -AttachmentCount $attachmentCount `
                     -AttachmentTotalBytes $attachmentTotalBytes `
-                    -BatchId $batchId
+                    -BatchId $batchId `
+                    -Notes @($transportResult.Notes)
             }
         }
     }

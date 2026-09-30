@@ -1,13 +1,13 @@
 Describe 'Export-SPMailJobReport' {
 
     BeforeAll {
-    . "$PSScriptRoot\..\..\Shared\TestBootstrap.ps1"
+        . "$PSScriptRoot\..\..\Shared\TestBootstrap.ps1"
 
-    $script:ModuleRoot = Get-SPTestProjectRoot -StartPath $PSScriptRoot
+        $script:ModuleRoot = Get-SPTestProjectRoot -StartPath $PSScriptRoot
 
-    . (Join-Path $script:ModuleRoot 'Private\Csv\Convert-SPCsvRow.ps1')
-    . (Join-Path $script:ModuleRoot 'Public\Reporting\Export-SPMailJobReport.ps1')
-}
+        . (Join-Path $script:ModuleRoot 'Private\Csv\Convert-SPCsvRow.ps1')
+        . (Join-Path $script:ModuleRoot 'Public\Reporting\Export-SPMailJobReport.ps1')
+    }
 
     It 'Exports a report to JSON successfully' {
         $report = [pscustomobject]@{
@@ -54,6 +54,10 @@ Describe 'Export-SPMailJobReport' {
                         ErrorMessage    = ''
                         AttemptedOn     = [datetime]'2026-03-13 23:01:00'
                         AttachmentCount = 1
+                        Notes           = @(
+                            'Microsoft Graph throttled sendMail attempt 1.'
+                            'Microsoft Graph accepted the sendMail request.'
+                        )
                     },
                     [pscustomobject]@{
                         RowNumber       = 2
@@ -65,6 +69,10 @@ Describe 'Export-SPMailJobReport' {
                         ErrorMessage    = 'Transport failed.'
                         AttemptedOn     = [datetime]'2026-03-13 23:02:00'
                         AttachmentCount = 0
+                        Notes           = @(
+                            'Microsoft Graph throttled sendMail attempt 1.'
+                            'Microsoft Graph throttled sendMail attempt 2.'
+                        )
                     }
                 )
             }
@@ -90,9 +98,12 @@ Describe 'Export-SPMailJobReport' {
         $rows[0].BatchId | Should -Be 'batch-010'
         $rows[0].Recipient | Should -Be 'user1@example.com'
         $rows[0].Status | Should -Be 'Sent'
+        $rows[0].Notes | Should -Be 'Microsoft Graph throttled sendMail attempt 1. | Microsoft Graph accepted the sendMail request.'
+
         $rows[1].Recipient | Should -Be 'user2@example.com'
         $rows[1].Status | Should -Be 'Failed'
         $rows[1].ErrorMessage | Should -Be 'Transport failed.'
+        $rows[1].Notes | Should -Be 'Microsoft Graph throttled sendMail attempt 1. | Microsoft Graph throttled sendMail attempt 2.'
     }
 
     It 'Exports an empty-shape CSV when no batch results exist' {
@@ -120,6 +131,9 @@ Describe 'Export-SPMailJobReport' {
         $rows[0].OverallStatus | Should -Be 'Invalid'
         $rows[0].Recipient | Should -Be ''
         $rows[0].Status | Should -Be ''
+
+        $null -eq $rows[0].PSObject.Properties['Notes'] | Should -BeFalse
+        $rows[0].Notes | Should -Be ''
     }
 
     It 'Creates the parent directory when it does not exist' {

@@ -6,8 +6,13 @@ Describe 'ConvertTo-SPSendResult' {
 
         . (Join-Path $script:ModuleRoot 'Private\Reporting\ConvertTo-SPSendResult.ps1')
     }
+
     It 'Returns a standardized result object when input is valid' {
         $attemptedOn = Get-Date
+        $notes = @(
+            'Microsoft Graph throttled sendMail attempt 1.'
+            'Microsoft Graph accepted the sendMail request.'
+        )
 
         $result = ConvertTo-SPSendResult `
             -RowNumber 1 `
@@ -19,7 +24,8 @@ Describe 'ConvertTo-SPSendResult' {
             -ErrorMessage '' `
             -AttemptedOn $attemptedOn `
             -AttachmentCount 2 `
-            -BatchId 'batch-001'
+            -BatchId 'batch-001' `
+            -Notes $notes
 
         $result.RowNumber | Should -Be 1
         $result.Recipient | Should -Be 'user@example.com'
@@ -31,6 +37,26 @@ Describe 'ConvertTo-SPSendResult' {
         $result.AttemptedOn | Should -Be $attemptedOn
         $result.AttachmentCount | Should -Be 2
         $result.BatchId | Should -Be 'batch-001'
+
+        $null -eq $result.Notes | Should -BeFalse
+        $result.Notes.Count | Should -Be 2
+        $result.Notes[0] | Should -Be $notes[0]
+        $result.Notes[1] | Should -Be $notes[1]
+    }
+
+    It 'Returns an empty Notes collection when Notes are not supplied' {
+        $result = ConvertTo-SPSendResult `
+            -RowNumber 1 `
+            -Recipient 'user@example.com' `
+            -SenderAddress 'askoneup@askoneup.com' `
+            -Subject 'Hello Donald' `
+            -Success $true `
+            -Status 'Sent' `
+            -AttemptedOn (Get-Date) `
+            -BatchId 'batch-001'
+
+        $null -eq $result.Notes | Should -BeFalse
+        $result.Notes.Count | Should -Be 0
     }
 
     It 'Throws when RowNumber is less than 1' {

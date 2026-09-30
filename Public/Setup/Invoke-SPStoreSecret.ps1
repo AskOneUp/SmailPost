@@ -1,4 +1,4 @@
-function Invoke-SPStoreSecret {
+﻿function Invoke-SPStoreSecret {
     <#
         .SYNOPSIS
         Stores or updates a secret in the SecretStore-backed SmailPost vault.

@@ -1,4 +1,4 @@
-function Test-SPPrerequisite {
+﻿function Test-SPPrerequisite {
     <#
         .SYNOPSIS
         Lightweight network prerequisite check for Microsoft Graph reachability.

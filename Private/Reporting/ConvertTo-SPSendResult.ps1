@@ -42,6 +42,9 @@ The number of attachments included in the message.
 .PARAMETER BatchId
 The identifier of the current batch run.
 
+.PARAMETER Notes
+Optional diagnostic notes associated with the send attempt.
+
 .OUTPUTS
 PSCustomObject
 
@@ -56,6 +59,7 @@ Returns an object containing:
 - AttemptedOn
 - AttachmentCount
 - BatchId
+- Notes
 
 .NOTES
 Private SmailPost function.
@@ -99,7 +103,10 @@ Used by Send-SPMailBatch.
         [int]$AttachmentCount = 0,
 
         [Parameter(Mandatory)]
-        [string]$BatchId
+        [string]$BatchId,
+
+        [Parameter()]
+        [string[]]$Notes = @()
     )
 
     if ($RowNumber -lt 1) {
@@ -133,5 +140,6 @@ Used by Send-SPMailBatch.
         AttemptedOn     = $AttemptedOn
         AttachmentCount = $AttachmentCount
         BatchId         = $BatchId
+        Notes           = @($Notes)
     }
 }

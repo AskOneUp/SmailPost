@@ -44,6 +44,9 @@ function ConvertTo-SPMailResult {
         .PARAMETER BatchId
         The identifier of the current send batch.
 
+        .PARAMETER Notes
+        Optional diagnostic notes associated with the send attempt.
+
         .OUTPUTS
         PSCustomObject
     #>
@@ -84,7 +87,10 @@ function ConvertTo-SPMailResult {
         [long]$AttachmentTotalBytes = 0L,
 
         [Parameter(Mandatory = $true)]
-        [string]$BatchId
+        [string]$BatchId,
+
+        [Parameter()]
+        [string[]]$Notes = @()
     )
 
     process {
@@ -125,6 +131,7 @@ function ConvertTo-SPMailResult {
             AttachmentCount      = $AttachmentCount
             AttachmentTotalBytes = $AttachmentTotalBytes
             BatchId              = $BatchId
+            Notes                = @($Notes)
         }
     }
 }

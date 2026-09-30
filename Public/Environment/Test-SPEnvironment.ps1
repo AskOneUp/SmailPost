@@ -1,4 +1,4 @@
-function Test-SPEnvironment {
+﻿function Test-SPEnvironment {
     <#
         .SYNOPSIS
         Checks that the current PowerShell meets a minimum major version.

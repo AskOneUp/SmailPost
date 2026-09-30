@@ -1,4 +1,4 @@
-function Test-SPGraphGetFallback {
+﻿function Test-SPGraphGetFallback {
     <#
         .SYNOPSIS
         GET fallback check for Microsoft Graph reachability.

@@ -1,4 +1,4 @@
-function Invoke-SPSetup {
+﻿function Invoke-SPSetup {
     <#
         .SYNOPSIS
         Runs the automated installer setup/doctor for SmailPost: checks environment, installs dependencies,
